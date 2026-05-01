@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { Plus, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { listMaps } from '@/lib/data/maps'
-import { createMapAction, deleteMapAction } from './actions'
+import { deleteMapAction } from './actions'
+import { NewMapButton } from '@/components/canvas/TemplatePicker'
 
 const dateFmt = new Intl.DateTimeFormat('de-DE', {
   day: '2-digit',
@@ -24,24 +25,15 @@ export default async function MapsPage() {
           </p>
         </div>
 
-        <form action={createMapAction}>
-          <input type="hidden" name="title" value="Neue Map" />
-          <button
-            type="submit"
-            className="flex items-center gap-2 rounded-md bg-gradient-to-r from-accent to-accent2 px-4 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:shadow-mid"
-          >
-            <Plus size={16} />
-            Neue Map
-          </button>
-        </form>
+        <NewMapButton />
       </div>
 
       {maps.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line2 bg-bg2 p-12 text-center">
           <p className="mb-2 font-display text-lg">Hier ist es noch leer.</p>
           <p className="mb-6 text-sm text-text3">
-            Klick oben auf <strong>Neue Map</strong> und der Canvas (Phase 4)
-            zeigt dir, was du daraus machen kannst.
+            Klick oben auf <strong>Neue Map</strong> und wähle eine Vorlage —
+            von Mindmap bis SWOT, von Flowchart bis 3D-Galaxy.
           </p>
         </div>
       ) : (
