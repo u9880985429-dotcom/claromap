@@ -1,26 +1,179 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400..800&family=DM+Sans:wght@400..800&family=DM+Mono:wght@400;500&family=Caveat:wght@400..700&family=Kalam:wght@400;700&family=Patrick+Hand&display=swap');
+
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Backgrounds */
+  --bg:  #F8F9FB;
+  --bg2: #FFFFFF;
+  --bg3: #F1F3F8;
+  --bg4: #E2E7F0;
+  --bg5: #D0D6E2;
+  /* Lines */
+  --line:  rgba(0,0,0,0.07);
+  --line2: rgba(0,0,0,0.13);
+  --line3: rgba(0,0,0,0.22);
+  /* Text */
+  --text:  #0F1424;
+  --text2: #3F465E;
+  --text3: #6B7390;
+  --text4: #9CA3B8;
+  /* Brand */
+  --accent:  #F5A623;
+  --accent2: #FF8C42;
+  /* Status */
+  --green:  #059669;
+  --amber:  #D97706;
+  --blue:   #2563EB;
+  --purple: #7C3AED;
+  --red:    #DC2626;
+  /* Radii */
+  --r-sm:   8px;
+  --r-md:   12px;
+  --r-lg:   16px;
+  --r-xl:   20px;
+  --r-full: 9999px;
+  /* Fonts */
+  --font-display: 'Syne', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-hand:    'Caveat', cursive;
+  --font-mono:    'DM Mono', monospace;
+  /* Shadows */
+  --shadow-soft:   0 2px 12px rgba(0,0,0,0.06);
+  --shadow-mid:    0 4px 20px rgba(0,0,0,0.10);
+  --shadow-strong: 0 12px 40px rgba(0,0,0,0.14);
+  /* Canvas */
+  --canvas-bg: #F8F9FB;
+  --bg-grid-color: rgba(0,0,0,0.05);
+}
+
+[data-theme="dark"] {
+  --bg:  #0A0C14;
+  --bg2: #0F1219;
+  --bg3: #161A24;
+  --bg4: #1F2433;
+  --bg5: #2A3045;
+  --line:  rgba(255,255,255,0.06);
+  --line2: rgba(255,255,255,0.11);
+  --line3: rgba(255,255,255,0.18);
+  --text:  #ECEEF5;
+  --text2: #A4ABBF;
+  --text3: #6B7390;
+  --text4: #4A5168;
+  --canvas-bg: #0A0C14;
+  --bg-grid-color: rgba(255,255,255,0.05);
+}
+
+[data-theme="hand"] {
+  --bg:  #FFFEF5;
+  --bg2: #FFFFFA;
+  --bg3: #FBF8E8;
+  --bg4: #F5EFCB;
+  --line:  rgba(60,40,10,0.12);
+  --line2: rgba(60,40,10,0.22);
+  --line3: rgba(60,40,10,0.4);
+  --text:  #1A1410;
+  --text2: #4A3B2A;
+  --text3: #7A6A55;
+  --text4: #A89880;
+  --font-display: 'Kalam', cursive;
+  --font-body:    'Patrick Hand', cursive;
+  --canvas-bg: #FFFEF5;
+  --bg-grid-color: rgba(60,40,10,0.08);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-bg2: var(--bg2);
+  --color-bg3: var(--bg3);
+  --color-bg4: var(--bg4);
+  --color-bg5: var(--bg5);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-line3: var(--line3);
+  --color-text: var(--text);
+  --color-text2: var(--text2);
+  --color-text3: var(--text3);
+  --color-text4: var(--text4);
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-blue: var(--blue);
+  --color-purple: var(--purple);
+  --color-red: var(--red);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-hand: var(--font-hand);
+  --font-mono: var(--font-mono);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --shadow-soft: var(--shadow-soft);
+  --shadow-mid: var(--shadow-mid);
+  --shadow-strong: var(--shadow-strong);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@keyframes wipPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,166,35,0); opacity: 0.3; }
+  50%      { box-shadow: 0 0 0 8px rgba(245,166,35,0.15); opacity: 0.55; }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes handWobble {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(-0.4deg); }
+  75%      { transform: rotate(0.4deg); }
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hand-Drawn-Theme: cremig-warmer Papier-Look mit 45°-Schraffur,
+   inspiriert von Maxs Qontroly-Excalidraw-Screenshot + selfhostedServiceNetwork.
+   Pastell-Vibe statt grelle Farben → Knoten kriegen Saturation-Reduktion + dashed Border. */
+body[data-theme="hand"] {
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      rgba(60,40,10,0.045) 0,
+      rgba(60,40,10,0.045) 1px,
+      transparent 1px,
+      transparent 9px
+    ),
+    radial-gradient(ellipse at top left, rgba(245,166,35,0.05), transparent 60%),
+    radial-gradient(ellipse at bottom right, rgba(255,140,66,0.05), transparent 60%);
+  font-size: 16px;
+}
+
+/* Knoten im Hand-Drawn-Theme: Pastell-Saturation + dashed Border */
+body[data-theme="hand"] .claromap-node {
+  filter: saturate(0.65) brightness(1.08);
+  border: 2.5px dashed rgba(60,40,10,0.4);
+  box-shadow: 2px 3px 0 rgba(60,40,10,0.18) !important;
+}
+
+body[data-theme="hand"] .claromap-node:hover {
+  filter: saturate(0.75) brightness(1.05);
+}
+
+/* Step-Pille + Status-Smiley im Hand-Drawn-Theme bekommen den gleichen Look */
+body[data-theme="hand"] .claromap-node-pill {
+  border-style: dashed !important;
+  border-color: rgba(60,40,10,0.4) !important;
+}
+
+/* Cards in den anderen Views (Linear, Kanban, List) im Hand-Drawn */
+body[data-theme="hand"] .claromap-card {
+  border-style: dashed;
+  border-color: rgba(60,40,10,0.3);
+}
+
+/* Dark-Theme: feinere Linien, dunklere Schatten */
+body[data-theme="dark"] {
+  color-scheme: dark;
 }
