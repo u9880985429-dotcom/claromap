@@ -24,6 +24,7 @@ import {
 } from '@/app/(dashboard)/maps/[id]/actions'
 import { savedAction } from '@/lib/utils/savedAction'
 import { undo, redo } from '@/lib/utils/undoRedo'
+import { cn } from '@/lib/utils/cn'
 
 type DragState =
   | {
@@ -85,6 +86,7 @@ export function WorkflowView({ mapId }: Props) {
   const connectFromNodeId = useUIStore((s) => s.connectFromNodeId)
   const theme = useUIStore((s) => s.theme)
   const focusMode = useUIStore((s) => s.focusMode)
+  const handTool = useUIStore((s) => s.handTool)
 
   // Im Focus-Mode: nur Knoten die mit dem selektierten direkt verbunden sind
   // (oder der selektierte selbst) bleiben voll sichtbar.
@@ -330,6 +332,19 @@ export function WorkflowView({ mapId }: Props) {
     const ui = useUIStore.getState()
     const store = useMapStore.getState()
 
+    // Hand-Tool: Klick auf Knoten = Pan starten (genau wie Hintergrund)
+    if (ui.handTool && !ui.connectMode) {
+      dragRef.current = {
+        kind: 'pan',
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        startPanX: ui.panX,
+        startPanY: ui.panY,
+      }
+      startDragListeners()
+      return
+    }
+
     // Shift / Cmd / Ctrl + Click → Multi-Select toggeln, KEIN Drag starten
     if (
       !ui.connectMode &&
@@ -549,33 +564,65 @@ export function WorkflowView({ mapId }: Props) {
         // Verbindungen, dimmt den Rest.
         e.preventDefault()
         useUIStore.getState().toggleFocusMode()
+      } else if (e.key === 'h' || e.key === 'H') {
+        // Hand-Tool toggeln: jeder Klick wird zum Pan
+        e.preventDefault()
+        useUIStore.getState().toggleHandTool()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const handleAddNode = async () => {
+  // Eine Funktion für alle Shape-Quick-Adds. Defaults pro Shape, der Rest
+  // bleibt Standard (handle_new_user-Trigger setzt sinnvolle Werte).
+  const handleAddShape = async (
+    shape: 'rect' | 'rounded' | 'diamond' | 'circle' | 'leaf' | 'note',
+  ) => {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
     const ui = useUIStore.getState()
     const centerX = rect.width / 2
     const centerY = rect.height / 2
-    const nodeX = (centerX - ui.panX) / ui.scale - 60
-    const nodeY = (centerY - ui.panY) / ui.scale - 60
+
+    const cfg = {
+      rect: { width: 140, height: 100, shape: '8%' as const },
+      rounded: { width: 140, height: 100, shape: '20%' as const },
+      diamond: { width: 140, height: 140, shape: 'diamond' as const },
+      circle: { width: 120, height: 120, shape: '50%' as const },
+      leaf: { width: 140, height: 140, shape: 'leaf' as const },
+      note: { width: 160, height: 160, shape: 'note' as const },
+    }[shape]
+
+    const nodeX = (centerX - ui.panX) / ui.scale - cfg.width / 2
+    const nodeY = (centerY - ui.panY) / ui.scale - cfg.height / 2
     const existing = useMapStore.getState().nodes
     const nextStep =
       existing.length === 0
         ? 1
         : Math.max(...existing.map((n) => n.step_number)) + 1
 
+    const isNote = shape === 'note'
     try {
       const created = await savedAction(() =>
         createNodeAction({
           map_id: mapId,
+          step_number: nextStep,
           position_x: Math.round(nodeX),
           position_y: Math.round(nodeY),
-          step_number: nextStep,
+          width: cfg.width,
+          height: cfg.height,
+          shape: cfg.shape,
+          ...(isNote
+            ? {
+                color: '#FEF3C7',
+                text_color: '#1A1410',
+                name: 'Notiz',
+                emoji: '📝',
+                status: 'idea',
+                status_icon: '🌱',
+              }
+            : {}),
         }),
       )
       useMapStore.getState().upsertNode(created)
@@ -583,46 +630,6 @@ export function WorkflowView({ mapId }: Props) {
       useMapStore.getState().pushHistory({ type: 'create-node', node: created })
     } catch (err) {
       console.error('Knoten konnte nicht erstellt werden', err)
-    }
-  }
-
-  const handleAddNote = async () => {
-    const rect = containerRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const ui = useUIStore.getState()
-    const centerX = rect.width / 2
-    const centerY = rect.height / 2
-    const nodeX = (centerX - ui.panX) / ui.scale - 80
-    const nodeY = (centerY - ui.panY) / ui.scale - 80
-    const existing = useMapStore.getState().nodes
-    const nextStep =
-      existing.length === 0
-        ? 1
-        : Math.max(...existing.map((n) => n.step_number)) + 1
-
-    try {
-      const created = await savedAction(() =>
-        createNodeAction({
-          map_id: mapId,
-          step_number: nextStep,
-          position_x: Math.round(nodeX),
-          position_y: Math.round(nodeY),
-          width: 160,
-          height: 160,
-          shape: 'note',
-          color: '#FEF3C7', // Pastell-Gelb (Sticky-Note-Klassiker)
-          text_color: '#1A1410',
-          name: 'Notiz',
-          emoji: '📝',
-          status: 'idea',
-          status_icon: '🌱',
-        }),
-      )
-      useMapStore.getState().upsertNode(created)
-      useMapStore.getState().selectNode(created.id)
-      useMapStore.getState().pushHistory({ type: 'create-node', node: created })
-    } catch (err) {
-      console.error('Notiz konnte nicht erstellt werden', err)
     }
   }
 
@@ -717,18 +724,22 @@ export function WorkflowView({ mapId }: Props) {
     <div
       ref={containerRef}
       onMouseDown={onBackgroundMouseDown}
-      className="relative h-full w-full overflow-hidden bg-bg"
+      className={cn(
+        'relative h-full w-full overflow-hidden bg-bg',
+        handTool && 'cursor-grab active:cursor-grabbing',
+      )}
       style={patternStyle}
     >
       <CanvasToolbar
         scale={scale}
         connectMode={connectMode}
+        handTool={handTool}
         selectedExists={selectedNodeIds.size > 0}
         canUndo={canUndoNow}
         canRedo={canRedoNow}
-        onAddNode={handleAddNode}
-        onAddNote={handleAddNote}
+        onAddShape={handleAddShape}
         onToggleConnect={() => useUIStore.getState().toggleConnectMode()}
+        onToggleHandTool={() => useUIStore.getState().toggleHandTool()}
         onDeleteSelected={handleDeleteSelected}
         onUndo={() => undo()}
         onRedo={() => redo()}
@@ -823,14 +834,65 @@ export function WorkflowView({ mapId }: Props) {
 
       {nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="rounded-xl border border-dashed border-line2 bg-bg2/80 px-8 py-6 text-center backdrop-blur">
-            <p className="font-display text-lg">Leerer Canvas</p>
-            <p className="mt-1 text-sm text-text3">
-              Klick oben auf <strong>+ Neu</strong> für deinen ersten Knoten.
-            </p>
+          <div className="pointer-events-auto flex flex-col items-center gap-5 rounded-2xl border border-dashed border-line2 bg-bg2/90 px-10 py-8 text-center shadow-soft backdrop-blur">
+            <div>
+              <p className="font-display text-xl font-semibold">
+                Leinwand bereit
+              </p>
+              <p className="mt-1.5 text-sm text-text3">
+                Wähle eine Form oder eine Aktion, um zu starten.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <WelcomeAction
+                onClick={() => handleAddShape('rounded')}
+                label="Rechteck"
+              />
+              <WelcomeAction
+                onClick={() => handleAddShape('diamond')}
+                label="Raute"
+              />
+              <WelcomeAction
+                onClick={() => handleAddShape('circle')}
+                label="Kreis"
+              />
+              <WelcomeAction
+                onClick={() => handleAddShape('note')}
+                label="Notiz"
+              />
+            </div>
+            <div className="flex items-center gap-3 border-t border-line pt-3 font-mono text-[11px] text-text4">
+              <span>
+                Drück <kbd className="rounded bg-bg3 px-1 py-0.5">?</kbd> für
+                alle Tastatur-Kürzel
+              </span>
+              <span>·</span>
+              <span>
+                <kbd className="rounded bg-bg3 px-1 py-0.5">⌘P</kbd> sucht in
+                allen Maps
+              </span>
+            </div>
           </div>
         </div>
       )}
     </div>
+  )
+}
+
+function WelcomeAction({
+  onClick,
+  label,
+}: {
+  onClick: () => void
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-md border border-line bg-bg3/40 px-3 py-1.5 text-sm font-medium text-text2 transition hover:border-accent/40 hover:bg-accent/10 hover:text-accent"
+    >
+      + {label}
+    </button>
   )
 }

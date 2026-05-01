@@ -24,6 +24,11 @@ interface UIState {
   connectFromNodeId: string | null
   focusMode: boolean
   snapToGrid: boolean
+  // Maps-Sidebar links (auf der Map-Edit-Seite). Persistiert via localStorage.
+  mapsSidebarOpen: boolean
+  // Hand-Tool: wenn aktiv, ist jeder Klick (auch auf Knoten) ein Pan.
+  // Toggle-Button in der Toolbar oder Hotkey "H".
+  handTool: boolean
 
   setView: (v: ViewName) => void
   setDetailLevel: (l: DetailLevel) => void
@@ -37,6 +42,10 @@ interface UIState {
   toggleFocusMode: () => void
   setFocusMode: (v: boolean) => void
   toggleSnapToGrid: () => void
+  toggleMapsSidebar: () => void
+  setMapsSidebarOpen: (open: boolean) => void
+  toggleHandTool: () => void
+  setHandTool: (v: boolean) => void
 }
 
 const MIN_SCALE = 0.2
@@ -53,6 +62,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   connectFromNodeId: null,
   focusMode: false,
   snapToGrid: false,
+  // Default true — wird per useEffect in der Sidebar-Komponente aus
+  // localStorage hydratisiert, um SSR/Client-Mismatch zu vermeiden.
+  mapsSidebarOpen: true,
+  handTool: false,
 
   setView: (v) => set({ view: v }),
   setDetailLevel: (l) => set({ detailLevel: l }),
@@ -80,4 +93,21 @@ export const useUIStore = create<UIState>((set, get) => ({
   toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
   setFocusMode: (v) => set({ focusMode: v }),
   toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
+  toggleMapsSidebar: () =>
+    set((s) => {
+      const next = !s.mapsSidebarOpen
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('claromap.mapsSidebarOpen', String(next))
+      }
+      return { mapsSidebarOpen: next }
+    }),
+  setMapsSidebarOpen: (open) =>
+    set(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('claromap.mapsSidebarOpen', String(open))
+      }
+      return { mapsSidebarOpen: open }
+    }),
+  toggleHandTool: () => set((s) => ({ handTool: !s.handTool })),
+  setHandTool: (v) => set({ handTool: v }),
 }))

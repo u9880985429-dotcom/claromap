@@ -1,27 +1,41 @@
 'use client'
 
 import {
-  Plus,
+  Square,
+  Diamond,
+  Circle,
+  StickyNote,
   Link2,
   Trash2,
   ZoomIn,
   ZoomOut,
   Home,
-  StickyNote,
   Undo2,
   Redo2,
+  Leaf,
+  Hand,
+  MousePointer2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+
+export type ShapeKind =
+  | 'rect'
+  | 'rounded'
+  | 'diamond'
+  | 'circle'
+  | 'leaf'
+  | 'note'
 
 interface Props {
   scale: number
   connectMode: boolean
+  handTool: boolean
   selectedExists: boolean
   canUndo: boolean
   canRedo: boolean
-  onAddNode: () => void
-  onAddNote: () => void
+  onAddShape: (shape: ShapeKind) => void
   onToggleConnect: () => void
+  onToggleHandTool: () => void
   onDeleteSelected: () => void
   onUndo: () => void
   onRedo: () => void
@@ -33,12 +47,13 @@ interface Props {
 export function CanvasToolbar({
   scale,
   connectMode,
+  handTool,
   selectedExists,
   canUndo,
   canRedo,
-  onAddNode,
-  onAddNote,
+  onAddShape,
   onToggleConnect,
+  onToggleHandTool,
   onDeleteSelected,
   onUndo,
   onRedo,
@@ -47,10 +62,45 @@ export function CanvasToolbar({
   onResetView,
 }: Props) {
   return (
-    <div className="pointer-events-none absolute left-4 top-4 z-20 flex gap-2">
+    <div className="pointer-events-none absolute left-4 top-4 z-20 flex flex-wrap gap-2">
+      <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg border border-line bg-bg2/95 p-1.5 shadow-soft backdrop-blur">
+        <ModeButton
+          onClick={onToggleHandTool}
+          icon={handTool ? Hand : MousePointer2}
+          label={handTool ? 'Hand-Tool aktiv (H)' : 'Auswahl (H für Hand-Tool)'}
+          active={handTool}
+        />
+      </div>
+
+      <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg border border-line bg-bg2/95 p-1.5 shadow-soft backdrop-blur">
+        <ShapeButton
+          onClick={() => onAddShape('rounded')}
+          icon={Square}
+          label="Rechteck"
+        />
+        <ShapeButton
+          onClick={() => onAddShape('diamond')}
+          icon={Diamond}
+          label="Raute"
+        />
+        <ShapeButton
+          onClick={() => onAddShape('circle')}
+          icon={Circle}
+          label="Kreis"
+        />
+        <ShapeButton
+          onClick={() => onAddShape('leaf')}
+          icon={Leaf}
+          label="Blatt"
+        />
+        <ShapeButton
+          onClick={() => onAddShape('note')}
+          icon={StickyNote}
+          label="Notiz"
+        />
+      </div>
+
       <div className="pointer-events-auto flex items-center gap-1 rounded-lg border border-line bg-bg2/95 p-1.5 shadow-soft backdrop-blur">
-        <ToolbarButton onClick={onAddNode} icon={Plus} label="Knoten" primary />
-        <ToolbarButton onClick={onAddNote} icon={StickyNote} label="Notiz" />
         <ToolbarButton
           onClick={onToggleConnect}
           icon={Link2}
@@ -97,6 +147,57 @@ export function CanvasToolbar({
         />
       </div>
     </div>
+  )
+}
+
+function ShapeButton({
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  onClick: () => void
+  icon: React.ComponentType<{ size?: number }>
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`${label} hinzufügen`}
+      aria-label={`${label} hinzufügen`}
+      className="flex h-8 w-8 items-center justify-center rounded-md text-text2 transition hover:bg-bg3 hover:text-accent"
+    >
+      <Icon size={16} />
+    </button>
+  )
+}
+
+function ModeButton({
+  onClick,
+  icon: Icon,
+  label,
+  active,
+}: {
+  onClick: () => void
+  icon: React.ComponentType<{ size?: number }>
+  label: string
+  active?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={cn(
+        'flex h-8 w-8 items-center justify-center rounded-md transition',
+        active
+          ? 'bg-accent/15 text-accent ring-1 ring-accent/30'
+          : 'text-text2 hover:bg-bg3 hover:text-accent',
+      )}
+    >
+      <Icon size={16} />
+    </button>
   )
 }
 

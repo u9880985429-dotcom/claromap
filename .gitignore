@@ -42,5 +42,7 @@ next-env.d.ts
 
 # Project-specific
 _input/
+_verwendet/
+_unused/
 claromap-app.zip
 .env.local

@@ -49,6 +49,11 @@ const SHORTCUTS: { keys: string[]; desc: string; group: string }[] = [
   },
   { keys: ['F'], desc: 'Focus-Mode auf Auswahl', group: 'Modi' },
   {
+    keys: ['H'],
+    desc: 'Hand-Tool an/aus (Klick wird zum Pannen)',
+    group: 'Modi',
+  },
+  {
     keys: ['Esc'],
     desc: 'Auswahl aufheben / Modus verlassen',
     group: 'Modi',
@@ -63,6 +68,11 @@ const SHORTCUTS: { keys: string[]; desc: string; group: string }[] = [
 
   // System
   { keys: ['?'], desc: 'Diese Übersicht öffnen/schließen', group: 'System' },
+  {
+    keys: ['⌘P', 'Strg+P'],
+    desc: 'Maps-Sidebar öffnen + Suchfeld fokussieren',
+    group: 'System',
+  },
 ]
 
 export function KeyboardCheatsheet() {
