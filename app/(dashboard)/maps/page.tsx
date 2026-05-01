@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { Trash2 } from 'lucide-react'
-import { listMaps } from '@/lib/data/maps'
+import { listMapsWithStats } from '@/lib/data/maps'
 import { deleteMapAction } from './actions'
 import { NewMapButton } from '@/components/canvas/TemplatePicker'
+import { MapCardPreview } from '@/components/canvas/MapCardPreview'
 
 const dateFmt = new Intl.DateTimeFormat('de-DE', {
   day: '2-digit',
@@ -11,7 +12,7 @@ const dateFmt = new Intl.DateTimeFormat('de-DE', {
 })
 
 export default async function MapsPage() {
-  const maps = await listMaps()
+  const maps = await listMapsWithStats()
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
@@ -56,9 +57,27 @@ export default async function MapsPage() {
                   {map.description}
                 </p>
               )}
-              <p className="mt-auto pt-4 font-mono text-xs text-text4">
-                Aktualisiert {dateFmt.format(new Date(map.updated_at))}
-              </p>
+
+              <div className="mb-3 mt-2">
+                <MapCardPreview nodes={map.preview_nodes} height={90} />
+              </div>
+
+              <div className="mt-auto flex items-center justify-between text-xs">
+                <div className="flex items-center gap-3 font-mono text-text4">
+                  <span>
+                    {map.node_count}{' '}
+                    {map.node_count === 1 ? 'Knoten' : 'Knoten'}
+                  </span>
+                  <span>·</span>
+                  <span>
+                    {map.connection_count}{' '}
+                    {map.connection_count === 1 ? 'Linie' : 'Linien'}
+                  </span>
+                </div>
+                <span className="font-mono text-text4">
+                  {dateFmt.format(new Date(map.updated_at))}
+                </span>
+              </div>
 
               <form
                 action={deleteMapAction}

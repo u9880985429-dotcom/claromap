@@ -19,6 +19,7 @@ import { KanbanView } from './views/KanbanView'
 import { ListView } from './views/ListView'
 import { TimelineView } from './views/TimelineView'
 import { SwimlaneView } from './views/SwimlaneView'
+import { KeyboardCheatsheet } from './KeyboardCheatsheet'
 import dynamic from 'next/dynamic'
 
 // 3D-View dynamisch laden (Three.js ~600KB) — nicht im Initial-Bundle
@@ -94,6 +95,7 @@ export function CanvasContainer({
 
       {selectedNodeId && <DetailPanel />}
       {selectedConnectionId && <ConnectionPanel />}
+      <KeyboardCheatsheet />
     </div>
   )
 }
