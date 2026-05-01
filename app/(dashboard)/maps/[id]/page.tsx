@@ -32,21 +32,23 @@ export default async function MapPage({
 
   return (
     <div className="flex h-[calc(100vh-57px)] flex-col">
-      <div className="flex items-center justify-between gap-4 border-b border-line bg-bg2 px-4 py-2">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line bg-bg2 px-4 py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <Link
             href="/maps"
-            className="rounded-md p-1.5 text-text3 transition hover:bg-bg3 hover:text-text"
+            className="shrink-0 rounded-md p-1.5 text-text3 transition hover:bg-bg3 hover:text-text"
             aria-label="Zurück zu allen Maps"
           >
             <ArrowLeft size={16} />
           </Link>
-          <MapTitle initialTitle={map.title} mapId={map.id} />
+          <div className="min-w-0 flex-1 max-w-xs">
+            <MapTitle initialTitle={map.title} mapId={map.id} />
+          </div>
           <HealthScore />
           <SaveIndicator />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 lg:gap-3">
           <ViewSwitcher />
           <AddTemplateButton mapId={map.id} />
           <ExportMapButton mapTitle={map.title} />

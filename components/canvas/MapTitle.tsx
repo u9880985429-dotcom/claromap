@@ -21,8 +21,8 @@ export function MapTitle({ initialTitle, mapId }: Props) {
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className="truncate rounded px-2 py-0.5 text-left font-display text-lg font-semibold transition hover:bg-bg3"
-      title="Klick zum Umbenennen"
+      className="block w-full truncate rounded px-2 py-0.5 text-left font-display text-lg font-semibold transition hover:bg-bg3"
+      title={`Klick zum Umbenennen: ${storeTitle}`}
     >
       {storeTitle}
     </button>
