@@ -1,16 +1,30 @@
 'use client'
 
-import { Plus, Link2, Trash2, ZoomIn, ZoomOut, Home, StickyNote } from 'lucide-react'
+import {
+  Plus,
+  Link2,
+  Trash2,
+  ZoomIn,
+  ZoomOut,
+  Home,
+  StickyNote,
+  Undo2,
+  Redo2,
+} from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 interface Props {
   scale: number
   connectMode: boolean
   selectedExists: boolean
+  canUndo: boolean
+  canRedo: boolean
   onAddNode: () => void
   onAddNote: () => void
   onToggleConnect: () => void
   onDeleteSelected: () => void
+  onUndo: () => void
+  onRedo: () => void
   onZoomIn: () => void
   onZoomOut: () => void
   onResetView: () => void
@@ -20,10 +34,14 @@ export function CanvasToolbar({
   scale,
   connectMode,
   selectedExists,
+  canUndo,
+  canRedo,
   onAddNode,
   onAddNote,
   onToggleConnect,
   onDeleteSelected,
+  onUndo,
+  onRedo,
   onZoomIn,
   onZoomOut,
   onResetView,
@@ -45,6 +63,23 @@ export function CanvasToolbar({
           label="Löschen"
           disabled={!selectedExists}
           danger
+        />
+      </div>
+
+      <div className="pointer-events-auto flex items-center gap-1 rounded-lg border border-line bg-bg2/95 p-1.5 shadow-soft backdrop-blur">
+        <ToolbarButton
+          onClick={onUndo}
+          icon={Undo2}
+          label=""
+          iconOnly
+          disabled={!canUndo}
+        />
+        <ToolbarButton
+          onClick={onRedo}
+          icon={Redo2}
+          label=""
+          iconOnly
+          disabled={!canRedo}
         />
       </div>
 

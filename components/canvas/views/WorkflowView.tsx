@@ -23,6 +23,7 @@ import {
   updateNodeAction,
 } from '@/app/(dashboard)/maps/[id]/actions'
 import { savedAction } from '@/lib/utils/savedAction'
+import { undo, redo } from '@/lib/utils/undoRedo'
 
 type DragState =
   | {
@@ -68,6 +69,10 @@ export function WorkflowView({ mapId }: Props) {
   const connections = useMapStore((s) => s.connections)
   const selectedNodeId = useMapStore((s) => s.selectedNodeId)
   const map = useMapStore((s) => s.map)
+  const historyIndex = useMapStore((s) => s.historyIndex)
+  const historyLength = useMapStore((s) => s.history.length)
+  const canUndoNow = historyIndex > 0
+  const canRedoNow = historyIndex < historyLength
 
   const scale = useUIStore((s) => s.scale)
   const panX = useUIStore((s) => s.panX)
@@ -169,6 +174,13 @@ export function WorkflowView({ mapId }: Props) {
         n &&
         (n.position_x !== state.startX || n.position_y !== state.startY)
       ) {
+        // History für Undo
+        useMapStore.getState().pushHistory({
+          type: 'patch-node',
+          nodeId: state.nodeId,
+          before: { position_x: state.startX, position_y: state.startY },
+          after: { position_x: n.position_x, position_y: n.position_y },
+        })
         savedAction(() =>
           updateNodeAction(state.nodeId, {
             position_x: n.position_x,
@@ -183,6 +195,23 @@ export function WorkflowView({ mapId }: Props) {
         .getState()
         .nodes.find((x) => x.id === state.nodeId)
       if (n) {
+        // History für Undo
+        useMapStore.getState().pushHistory({
+          type: 'patch-node',
+          nodeId: state.nodeId,
+          before: {
+            position_x: state.startX,
+            position_y: state.startY,
+            width: state.startW,
+            height: state.startH,
+          },
+          after: {
+            position_x: n.position_x,
+            position_y: n.position_y,
+            width: n.width,
+            height: n.height,
+          },
+        })
         savedAction(() =>
           updateNodeAction(state.nodeId, {
             position_x: n.position_x,
@@ -255,17 +284,23 @@ export function WorkflowView({ mapId }: Props) {
       }
       useMapStore.getState().upsertConnection(tempConn)
 
-      createConnectionAction({
-        map_id: mapId,
-        from_node_id: fromId,
-        to_node_id: toId,
-      })
+      savedAction(() =>
+        createConnectionAction({
+          map_id: mapId,
+          from_node_id: fromId,
+          to_node_id: toId,
+        }),
+      )
         .then((real) => {
           useMapStore.setState((s) => ({
             connections: s.connections.map((c) =>
               c.id === tempId ? real : c,
             ),
           }))
+          // History für Undo: erst nach Server-Bestätigung mit echter ID
+          useMapStore
+            .getState()
+            .pushHistory({ type: 'create-connection', conn: real })
         })
         .catch((err) => {
           console.error('Verbindung konnte nicht gespeichert werden', err)
@@ -336,10 +371,40 @@ export function WorkflowView({ mapId }: Props) {
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
 
       const sel = useMapStore.getState().selectedNodeId
+      // Undo/Redo: Cmd+Z / Cmd+Shift+Z (Mac), Ctrl+Z / Ctrl+Shift+Z (Win/Linux)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          redo()
+        } else {
+          undo()
+        }
+        return
+      }
+      // Cmd+Y als alternativer Redo-Shortcut
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        redo()
+        return
+      }
       if ((e.key === 'Delete' || e.key === 'Backspace') && sel) {
         e.preventDefault()
-        useMapStore.getState().removeNode(sel)
-        deleteNodeAction(sel).catch((err) =>
+        const state = useMapStore.getState()
+        const node = state.nodes.find((n) => n.id === sel)
+        if (node) {
+          const conns = state.connections.filter(
+            (c) => c.from_node_id === sel || c.to_node_id === sel,
+          )
+          const tasks = state.tasks.filter((t) => t.node_id === sel)
+          state.pushHistory({
+            type: 'delete-node',
+            node,
+            connections: conns,
+            tasks,
+          })
+        }
+        state.removeNode(sel)
+        savedAction(() => deleteNodeAction(sel)).catch((err) =>
           console.error('Knoten konnte nicht gelöscht werden', err),
         )
       } else if (e.key === 'Escape') {
@@ -384,6 +449,7 @@ export function WorkflowView({ mapId }: Props) {
       )
       useMapStore.getState().upsertNode(created)
       useMapStore.getState().selectNode(created.id)
+      useMapStore.getState().pushHistory({ type: 'create-node', node: created })
     } catch (err) {
       console.error('Knoten konnte nicht erstellt werden', err)
     }
@@ -423,17 +489,28 @@ export function WorkflowView({ mapId }: Props) {
       )
       useMapStore.getState().upsertNode(created)
       useMapStore.getState().selectNode(created.id)
+      useMapStore.getState().pushHistory({ type: 'create-node', node: created })
     } catch (err) {
       console.error('Notiz konnte nicht erstellt werden', err)
     }
   }
 
   const handleDeleteSelected = async () => {
-    const id = useMapStore.getState().selectedNodeId
+    const state = useMapStore.getState()
+    const id = state.selectedNodeId
     if (!id) return
-    useMapStore.getState().removeNode(id)
+    const node = state.nodes.find((n) => n.id === id)
+    if (!node) return
+    // Connections die zum Knoten gehören — für Undo speichern
+    const conns = state.connections.filter(
+      (c) => c.from_node_id === id || c.to_node_id === id,
+    )
+    const tasks = state.tasks.filter((t) => t.node_id === id)
+    state.pushHistory({ type: 'delete-node', node, connections: conns, tasks })
+
+    state.removeNode(id)
     try {
-      await deleteNodeAction(id)
+      await savedAction(() => deleteNodeAction(id))
     } catch (err) {
       console.error(err)
     }
@@ -488,10 +565,14 @@ export function WorkflowView({ mapId }: Props) {
         scale={scale}
         connectMode={connectMode}
         selectedExists={selectedNodeId !== null}
+        canUndo={canUndoNow}
+        canRedo={canRedoNow}
         onAddNode={handleAddNode}
         onAddNote={handleAddNote}
         onToggleConnect={() => useUIStore.getState().toggleConnectMode()}
         onDeleteSelected={handleDeleteSelected}
+        onUndo={() => undo()}
+        onRedo={() => redo()}
         onZoomIn={() => useUIStore.getState().zoomBy(1.2)}
         onZoomOut={() => useUIStore.getState().zoomBy(1 / 1.2)}
         onResetView={() => useUIStore.getState().resetView()}

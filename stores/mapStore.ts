@@ -8,6 +8,25 @@ export type TaskRow = Database['public']['Tables']['tasks']['Row']
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
+// History-Stack für Undo/Redo. Jede Aktion ist ihr eigener "inverse-fähiger"
+// Eintrag, der lokal angewendet UND server-seitig synchronisiert werden kann.
+export type HistoryEntry =
+  | {
+      type: 'patch-node'
+      nodeId: string
+      before: Partial<NodeRow>
+      after: Partial<NodeRow>
+    }
+  | { type: 'create-node'; node: NodeRow }
+  | {
+      type: 'delete-node'
+      node: NodeRow
+      connections: ConnectionRow[]
+      tasks: TaskRow[]
+    }
+  | { type: 'create-connection'; conn: ConnectionRow }
+  | { type: 'delete-connection'; conn: ConnectionRow }
+
 interface MapState {
   map: MapRow | null
   nodes: NodeRow[]
@@ -18,6 +37,16 @@ interface MapState {
   saveStatus: SaveStatus
   saveStatusUntil: number // timestamp ms — bis wann „saved" angezeigt wird
   inflightCount: number // wieviele Server Actions gerade laufen
+
+  // Undo/Redo
+  history: HistoryEntry[]
+  historyIndex: number // -1 = nichts zum redo'n, history.length = nichts zum undo'n
+  pushHistory: (entry: HistoryEntry) => void
+  clearHistory: () => void
+  canUndo: () => boolean
+  canRedo: () => boolean
+  popUndo: () => HistoryEntry | null
+  popRedo: () => HistoryEntry | null
 
   init: (
     map: MapRow,
@@ -48,7 +77,7 @@ interface MapState {
   removeTask: (id: string) => void
 }
 
-export const useMapStore = create<MapState>((set) => ({
+export const useMapStore = create<MapState>((set, get) => ({
   map: null,
   nodes: [],
   connections: [],
@@ -59,6 +88,9 @@ export const useMapStore = create<MapState>((set) => ({
   saveStatusUntil: 0,
   inflightCount: 0,
 
+  history: [],
+  historyIndex: 0,
+
   init: (map, nodes, connections, tasks) =>
     set({
       map,
@@ -67,7 +99,42 @@ export const useMapStore = create<MapState>((set) => ({
       tasks,
       selectedNodeId: null,
       selectedConnectionId: null,
+      history: [],
+      historyIndex: 0,
     }),
+
+  pushHistory: (entry) =>
+    set((s) => {
+      // Wenn wir nach einem Undo waren und neue Action kommt:
+      // alle "redo"-Einträge nach dem aktuellen Index verwerfen.
+      const trimmed = s.history.slice(0, s.historyIndex)
+      const next = [...trimmed, entry].slice(-50) // max 50 Schritte
+      return { history: next, historyIndex: next.length }
+    }),
+
+  clearHistory: () => set({ history: [], historyIndex: 0 }),
+
+  canUndo: () => get().historyIndex > 0,
+  canRedo: () => {
+    const s = get()
+    return s.historyIndex < s.history.length
+  },
+
+  popUndo: () => {
+    const s = get()
+    if (s.historyIndex <= 0) return null
+    const entry = s.history[s.historyIndex - 1]
+    set({ historyIndex: s.historyIndex - 1 })
+    return entry
+  },
+
+  popRedo: () => {
+    const s = get()
+    if (s.historyIndex >= s.history.length) return null
+    const entry = s.history[s.historyIndex]
+    set({ historyIndex: s.historyIndex + 1 })
+    return entry
+  },
 
   beginSave: () =>
     set((s) => ({
