@@ -7,6 +7,7 @@ import {
   deleteNodeAction,
   updateNodeAction,
 } from '@/app/(dashboard)/maps/[id]/actions'
+import { savedAction } from '@/lib/utils/savedAction'
 import { EmojiPicker } from './pickers/EmojiPicker'
 import { ColorPicker } from './pickers/ColorPicker'
 import { StatusPicker, type StatusValue } from './pickers/StatusPicker'
@@ -27,7 +28,7 @@ function NodeEditor({ node }: { node: NodeRow }) {
   const patchAndSave = async (patch: Partial<NodeRow>) => {
     useMapStore.getState().patchNodeLocal(node.id, patch)
     try {
-      await updateNodeAction(node.id, patch)
+      await savedAction(() => updateNodeAction(node.id, patch))
     } catch (err) {
       console.error('Speichern fehlgeschlagen', err)
     }
@@ -38,7 +39,7 @@ function NodeEditor({ node }: { node: NodeRow }) {
   const onDelete = async () => {
     useMapStore.getState().removeNode(node.id)
     try {
-      await deleteNodeAction(node.id)
+      await savedAction(() => deleteNodeAction(node.id))
     } catch (err) {
       console.error(err)
     }

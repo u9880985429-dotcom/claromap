@@ -11,6 +11,8 @@ import { MapSettings } from '@/components/canvas/MapSettings'
 import { MapTitle } from '@/components/canvas/MapTitle'
 import { HealthScore } from '@/components/canvas/HealthScore'
 import { AddTemplateButton } from '@/components/canvas/TemplatePicker'
+import { SaveIndicator } from '@/components/canvas/SaveIndicator'
+import { ExportMapButton } from '@/components/canvas/ExportMapButton'
 
 export default async function MapPage({
   params,
@@ -41,11 +43,13 @@ export default async function MapPage({
           </Link>
           <MapTitle initialTitle={map.title} mapId={map.id} />
           <HealthScore />
+          <SaveIndicator />
         </div>
 
         <div className="flex items-center gap-3">
           <ViewSwitcher />
           <AddTemplateButton mapId={map.id} />
+          <ExportMapButton mapTitle={map.title} />
           <MapSettings />
         </div>
       </div>

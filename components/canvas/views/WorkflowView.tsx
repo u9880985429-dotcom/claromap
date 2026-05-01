@@ -22,6 +22,7 @@ import {
   deleteNodeAction,
   updateNodeAction,
 } from '@/app/(dashboard)/maps/[id]/actions'
+import { savedAction } from '@/lib/utils/savedAction'
 
 type DragState =
   | {
@@ -168,10 +169,12 @@ export function WorkflowView({ mapId }: Props) {
         n &&
         (n.position_x !== state.startX || n.position_y !== state.startY)
       ) {
-        updateNodeAction(state.nodeId, {
-          position_x: n.position_x,
-          position_y: n.position_y,
-        }).catch((err) =>
+        savedAction(() =>
+          updateNodeAction(state.nodeId, {
+            position_x: n.position_x,
+            position_y: n.position_y,
+          }),
+        ).catch((err) =>
           console.error('Position konnte nicht gespeichert werden', err),
         )
       }
@@ -180,12 +183,14 @@ export function WorkflowView({ mapId }: Props) {
         .getState()
         .nodes.find((x) => x.id === state.nodeId)
       if (n) {
-        updateNodeAction(state.nodeId, {
-          position_x: n.position_x,
-          position_y: n.position_y,
-          width: n.width,
-          height: n.height,
-        }).catch((err) =>
+        savedAction(() =>
+          updateNodeAction(state.nodeId, {
+            position_x: n.position_x,
+            position_y: n.position_y,
+            width: n.width,
+            height: n.height,
+          }),
+        ).catch((err) =>
           console.error('Größe konnte nicht gespeichert werden', err),
         )
       }
@@ -369,16 +374,57 @@ export function WorkflowView({ mapId }: Props) {
         : Math.max(...existing.map((n) => n.step_number)) + 1
 
     try {
-      const created = await createNodeAction({
-        map_id: mapId,
-        position_x: Math.round(nodeX),
-        position_y: Math.round(nodeY),
-        step_number: nextStep,
-      })
+      const created = await savedAction(() =>
+        createNodeAction({
+          map_id: mapId,
+          position_x: Math.round(nodeX),
+          position_y: Math.round(nodeY),
+          step_number: nextStep,
+        }),
+      )
       useMapStore.getState().upsertNode(created)
       useMapStore.getState().selectNode(created.id)
     } catch (err) {
       console.error('Knoten konnte nicht erstellt werden', err)
+    }
+  }
+
+  const handleAddNote = async () => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const ui = useUIStore.getState()
+    const centerX = rect.width / 2
+    const centerY = rect.height / 2
+    const nodeX = (centerX - ui.panX) / ui.scale - 80
+    const nodeY = (centerY - ui.panY) / ui.scale - 80
+    const existing = useMapStore.getState().nodes
+    const nextStep =
+      existing.length === 0
+        ? 1
+        : Math.max(...existing.map((n) => n.step_number)) + 1
+
+    try {
+      const created = await savedAction(() =>
+        createNodeAction({
+          map_id: mapId,
+          step_number: nextStep,
+          position_x: Math.round(nodeX),
+          position_y: Math.round(nodeY),
+          width: 160,
+          height: 160,
+          shape: 'note',
+          color: '#FEF3C7', // Pastell-Gelb (Sticky-Note-Klassiker)
+          text_color: '#1A1410',
+          name: 'Notiz',
+          emoji: '📝',
+          status: 'idea',
+          status_icon: '🌱',
+        }),
+      )
+      useMapStore.getState().upsertNode(created)
+      useMapStore.getState().selectNode(created.id)
+    } catch (err) {
+      console.error('Notiz konnte nicht erstellt werden', err)
     }
   }
 
@@ -443,6 +489,7 @@ export function WorkflowView({ mapId }: Props) {
         connectMode={connectMode}
         selectedExists={selectedNodeId !== null}
         onAddNode={handleAddNode}
+        onAddNote={handleAddNote}
         onToggleConnect={() => useUIStore.getState().toggleConnectMode()}
         onDeleteSelected={handleDeleteSelected}
         onZoomIn={() => useUIStore.getState().zoomBy(1.2)}

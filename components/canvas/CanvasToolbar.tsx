@@ -1,6 +1,6 @@
 'use client'
 
-import { Plus, Link2, Trash2, ZoomIn, ZoomOut, Home } from 'lucide-react'
+import { Plus, Link2, Trash2, ZoomIn, ZoomOut, Home, StickyNote } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   connectMode: boolean
   selectedExists: boolean
   onAddNode: () => void
+  onAddNote: () => void
   onToggleConnect: () => void
   onDeleteSelected: () => void
   onZoomIn: () => void
@@ -20,6 +21,7 @@ export function CanvasToolbar({
   connectMode,
   selectedExists,
   onAddNode,
+  onAddNote,
   onToggleConnect,
   onDeleteSelected,
   onZoomIn,
@@ -29,7 +31,8 @@ export function CanvasToolbar({
   return (
     <div className="pointer-events-none absolute left-4 top-4 z-20 flex gap-2">
       <div className="pointer-events-auto flex items-center gap-1 rounded-lg border border-line bg-bg2/95 p-1.5 shadow-soft backdrop-blur">
-        <ToolbarButton onClick={onAddNode} icon={Plus} label="Neu" primary />
+        <ToolbarButton onClick={onAddNode} icon={Plus} label="Knoten" primary />
+        <ToolbarButton onClick={onAddNote} icon={StickyNote} label="Notiz" />
         <ToolbarButton
           onClick={onToggleConnect}
           icon={Link2}

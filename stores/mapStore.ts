@@ -6,6 +6,8 @@ export type NodeRow = Database['public']['Tables']['nodes']['Row']
 export type ConnectionRow = Database['public']['Tables']['connections']['Row']
 export type TaskRow = Database['public']['Tables']['tasks']['Row']
 
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
 interface MapState {
   map: MapRow | null
   nodes: NodeRow[]
@@ -13,6 +15,9 @@ interface MapState {
   tasks: TaskRow[]
   selectedNodeId: string | null
   selectedConnectionId: string | null
+  saveStatus: SaveStatus
+  saveStatusUntil: number // timestamp ms — bis wann „saved" angezeigt wird
+  inflightCount: number // wieviele Server Actions gerade laufen
 
   init: (
     map: MapRow,
@@ -20,6 +25,9 @@ interface MapState {
     connections: ConnectionRow[],
     tasks: TaskRow[],
   ) => void
+
+  beginSave: () => void
+  endSave: (success: boolean) => void
 
   patchMapLocal: (patch: Partial<MapRow>) => void
   upsertMap: (map: MapRow) => void
@@ -47,6 +55,9 @@ export const useMapStore = create<MapState>((set) => ({
   tasks: [],
   selectedNodeId: null,
   selectedConnectionId: null,
+  saveStatus: 'idle',
+  saveStatusUntil: 0,
+  inflightCount: 0,
 
   init: (map, nodes, connections, tasks) =>
     set({
@@ -56,6 +67,26 @@ export const useMapStore = create<MapState>((set) => ({
       tasks,
       selectedNodeId: null,
       selectedConnectionId: null,
+    }),
+
+  beginSave: () =>
+    set((s) => ({
+      saveStatus: 'saving',
+      inflightCount: s.inflightCount + 1,
+    })),
+
+  endSave: (success) =>
+    set((s) => {
+      const next = Math.max(0, s.inflightCount - 1)
+      if (next > 0) {
+        // Es laufen noch Saves — bleib auf 'saving'
+        return { inflightCount: next }
+      }
+      return {
+        inflightCount: 0,
+        saveStatus: success ? 'saved' : 'error',
+        saveStatusUntil: Date.now() + 2000,
+      }
     }),
 
   patchMapLocal: (patch) =>

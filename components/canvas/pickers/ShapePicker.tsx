@@ -1,6 +1,13 @@
 'use client'
 
-export type ShapeValue = '50%' | '20%' | '8%' | '0%' | 'leaf' | 'diamond'
+export type ShapeValue =
+  | '50%'
+  | '20%'
+  | '8%'
+  | '0%'
+  | 'leaf'
+  | 'diamond'
+  | 'note'
 
 const SHAPES: { value: ShapeValue; label: string; preview: string }[] = [
   { value: '50%', label: 'Kreis', preview: '50%' },
@@ -9,6 +16,7 @@ const SHAPES: { value: ShapeValue; label: string; preview: string }[] = [
   { value: '0%', label: 'Eckig', preview: '0' },
   { value: 'leaf', label: 'Blatt', preview: '50% 0 50% 0' },
   { value: 'diamond', label: 'Raute', preview: 'diamond' },
+  { value: 'note', label: 'Notiz', preview: 'note' },
 ]
 
 const DIAMOND_CLIP = 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)'
@@ -32,14 +40,26 @@ export function ShapePicker({ value, onChange }: Props) {
               : 'border-line2 bg-bg2 text-text3 hover:bg-bg3 hover:text-text'
           }`}
         >
-          <div
-            className="h-7 w-7 bg-text3"
-            style={
-              s.value === 'diamond'
-                ? { clipPath: DIAMOND_CLIP }
-                : { borderRadius: s.preview }
-            }
-          />
+          {s.value === 'diamond' ? (
+            <div
+              className="h-7 w-7 bg-text3"
+              style={{ clipPath: DIAMOND_CLIP }}
+            />
+          ) : s.value === 'note' ? (
+            <div
+              className="h-7 w-7 bg-amber/70"
+              style={{
+                borderRadius: '0 8px 0 0',
+                transform: 'rotate(-2deg)',
+                boxShadow: '1px 1px 0 rgba(0,0,0,0.15)',
+              }}
+            />
+          ) : (
+            <div
+              className="h-7 w-7 bg-text3"
+              style={{ borderRadius: s.preview }}
+            />
+          )}
           <span>{s.label}</span>
         </button>
       ))}

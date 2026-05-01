@@ -40,12 +40,20 @@ export function Node({
 
   const [editing, setEditing] = useState(false)
   const isDiamond = node.shape === 'diamond'
+  const isNote = node.shape === 'note'
   const radius = isDiamond
     ? '0%'
     : node.shape === 'leaf'
       ? '50% 0 50% 0'
-      : node.shape
+      : isNote
+        ? '0 12px 0 0' // Sticky-Note: rechte obere Ecke abgeknickt
+        : node.shape
   const fontScale = Math.max(0.7, Math.min(1.4, node.width / 120))
+  // Sticky-Notes haben leichten Rotation-Wackel basierend auf der Knoten-ID,
+  // damit jede Note minimal anders ausgerichtet ist (Excalidraw-Vibe)
+  const noteRotation = isNote
+    ? `${(parseInt(node.id.slice(0, 8), 16) % 7) - 3}deg`
+    : '0deg'
 
   return (
     <div
@@ -69,9 +77,12 @@ export function Node({
         borderRadius: radius,
         boxShadow: isDiamond
           ? 'none'
-          : selected
-            ? '0 12px 32px rgba(0,0,0,0.20)'
-            : '0 2px 8px rgba(0,0,0,0.10)',
+          : isNote
+            ? '2px 3px 0 rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.08)'
+            : selected
+              ? '0 12px 32px rgba(0,0,0,0.20)'
+              : '0 2px 8px rgba(0,0,0,0.10)',
+        transform: isNote ? `rotate(${noteRotation})` : undefined,
         opacity: dimmed ? 0.18 : 1,
         transition: 'opacity 200ms ease',
       }}
@@ -134,29 +145,45 @@ export function Node({
             {node.name}
           </div>
         )}
-        {detailLevel === 'full' && node.short_desc && !editing && (
-          <div
-            className="line-clamp-1 opacity-80"
-            style={{ fontSize: `${10 * fontScale}px` }}
-          >
-            {node.short_desc}
-          </div>
+        {/* AUSFÜHRLICH: Short-Desc fest, Description-Anschnitt, Tasks-Count */}
+        {detailLevel === 'full' && !editing && (
+          <>
+            {node.short_desc && (
+              <div
+                className="line-clamp-1 italic opacity-85"
+                style={{ fontSize: `${10 * fontScale}px` }}
+              >
+                {node.short_desc}
+              </div>
+            )}
+            {node.description && (
+              <div
+                className="line-clamp-2 opacity-70"
+                style={{ fontSize: `${9 * fontScale}px` }}
+              >
+                {node.description}
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {detailLevel !== 'simple' && (
+      {/* Step-Pille: nur in Normal + Ausführlich, NICHT bei Sticky-Notes */}
+      {detailLevel !== 'simple' && !isNote && (
         <div className="absolute -left-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full border border-line bg-bg2 px-1.5 font-mono text-xs font-semibold text-text shadow-soft">
           {node.step_number}
         </div>
       )}
 
-      {detailLevel !== 'simple' && (
+      {/* Status-Smiley: nur in Normal + Ausführlich, NICHT bei Sticky-Notes */}
+      {detailLevel !== 'simple' && !isNote && (
         <div className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-bg2 text-sm shadow-soft">
           {node.status_icon}
         </div>
       )}
 
-      {node.progress > 0 && (
+      {/* Progress-Bar: nur in Normal + Ausführlich, NICHT bei Sticky-Notes */}
+      {detailLevel !== 'simple' && !isNote && node.progress > 0 && (
         <div className="absolute bottom-1 left-2 right-2 h-1 overflow-hidden rounded-full bg-black/15">
           <div
             className="h-full bg-white/85"
@@ -164,6 +191,9 @@ export function Node({
           />
         </div>
       )}
+
+      {/* Ausführlich-only: Tasks-Count-Badge unten links */}
+      {detailLevel === 'full' && !isNote && <TasksBadge nodeId={node.id} />}
 
       {selected && !connectMode && !editing && (
         <>
@@ -185,6 +215,27 @@ export function Node({
           />
         </>
       )}
+    </div>
+  )
+}
+
+function TasksBadge({ nodeId }: { nodeId: string }) {
+  const total = useMapStore(
+    (s) => s.tasks.filter((t) => t.node_id === nodeId).length,
+  )
+  const done = useMapStore(
+    (s) => s.tasks.filter((t) => t.node_id === nodeId && t.done).length,
+  )
+  if (total === 0) return null
+  return (
+    <div
+      className="absolute -bottom-2 -left-2 flex h-5 items-center gap-1 rounded-full bg-bg2 px-1.5 font-mono text-[10px] font-semibold text-text shadow-soft"
+      title={`${done} von ${total} Aufgaben erledigt`}
+    >
+      <span>☑</span>
+      <span>
+        {done}/{total}
+      </span>
     </div>
   )
 }
