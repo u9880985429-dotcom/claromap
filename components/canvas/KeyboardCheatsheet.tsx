@@ -20,8 +20,25 @@ const SHORTCUTS: { keys: string[]; desc: string; group: string }[] = [
   { keys: ['Eck-Handles'], desc: 'Größe ändern', group: 'Knoten' },
   {
     keys: ['Del', 'Backspace'],
-    desc: 'Ausgewählten Knoten löschen',
+    desc: 'Ausgewählte(n) Knoten löschen',
     group: 'Knoten',
+  },
+
+  // Mehrfach-Auswahl
+  {
+    keys: ['Shift + Klick', '⌘ + Klick'],
+    desc: 'Knoten zur Auswahl hinzufügen / entfernen',
+    group: 'Mehrfach',
+  },
+  {
+    keys: ['Ziehen', 'mehrere selektiert'],
+    desc: 'Alle ausgewählten Knoten gleichzeitig verschieben',
+    group: 'Mehrfach',
+  },
+  {
+    keys: ['Shift + Hintergrund'],
+    desc: 'Pannen ohne Auswahl zu verlieren',
+    group: 'Mehrfach',
   },
 
   // Modi

@@ -16,6 +16,9 @@ export type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br'
 interface Props {
   node: NodeRow
   selected: boolean
+  // Wahr, wenn der Knoten Teil einer Multi-Selection ist (>1 selektiert).
+  // selected ist dann false (selectedNodeId = null), aber multiSelected = true.
+  multiSelected?: boolean
   connectMode: boolean
   isConnectStart: boolean
   dimmed?: boolean
@@ -30,6 +33,7 @@ interface Props {
 export function Node({
   node,
   selected,
+  multiSelected = false,
   connectMode,
   isConnectStart,
   dimmed = false,
@@ -65,6 +69,10 @@ export function Node({
             ? 'cursor-text'
             : 'cursor-grab active:cursor-grabbing',
         selected && !connectMode && 'ring-2 ring-accent ring-offset-2',
+        multiSelected &&
+          !selected &&
+          !connectMode &&
+          'ring-2 ring-purple ring-offset-2',
         isConnectStart && 'ring-4 ring-accent2 ring-offset-2',
       )}
       style={{

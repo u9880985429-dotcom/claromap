@@ -17,12 +17,22 @@ export type HistoryEntry =
       before: Partial<NodeRow>
       after: Partial<NodeRow>
     }
+  | {
+      // Mehrere Knoten gleichzeitig patchen (Bulk-Drag) — als ein Undo-Schritt.
+      type: 'bulk-patch-nodes'
+      patches: { nodeId: string; before: Partial<NodeRow>; after: Partial<NodeRow> }[]
+    }
   | { type: 'create-node'; node: NodeRow }
   | {
       type: 'delete-node'
       node: NodeRow
       connections: ConnectionRow[]
       tasks: TaskRow[]
+    }
+  | {
+      // Mehrere Knoten gleichzeitig löschen (Bulk-Delete).
+      type: 'bulk-delete-nodes'
+      items: { node: NodeRow; connections: ConnectionRow[]; tasks: TaskRow[] }[]
     }
   | { type: 'create-connection'; conn: ConnectionRow }
   | { type: 'delete-connection'; conn: ConnectionRow }
@@ -33,6 +43,10 @@ interface MapState {
   connections: ConnectionRow[]
   tasks: TaskRow[]
   selectedNodeId: string | null
+  // Set aller selektierten Knoten (Multi-Select). Bei einer Single-Selection
+  // ist der Set genau {selectedNodeId}. Bei Multi-Select ist selectedNodeId
+  // = null (DetailPanel würde keinen Sinn machen), selectedNodeIds.size > 1.
+  selectedNodeIds: Set<string>
   selectedConnectionId: string | null
   saveStatus: SaveStatus
   saveStatusUntil: number // timestamp ms — bis wann „saved" angezeigt wird
@@ -62,6 +76,12 @@ interface MapState {
   upsertMap: (map: MapRow) => void
 
   selectNode: (id: string | null) => void
+  // Toggle einen Knoten in der Auswahl (Shift+Click). Wenn er drin ist:
+  // raus. Wenn nicht: dazu. Anschließend wird selectedNodeId auf id gesetzt
+  // wenn nach dem Toggle genau 1 selektiert ist, sonst null.
+  toggleNodeSelection: (id: string) => void
+  // Mehrere Knoten direkt setzen (z.B. Box-Select später).
+  setNodeSelection: (ids: string[]) => void
   selectConnection: (id: string | null) => void
 
   patchNodeLocal: (id: string, patch: Partial<NodeRow>) => void
@@ -83,6 +103,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   connections: [],
   tasks: [],
   selectedNodeId: null,
+  selectedNodeIds: new Set<string>(),
   selectedConnectionId: null,
   saveStatus: 'idle',
   saveStatusUntil: 0,
@@ -98,6 +119,7 @@ export const useMapStore = create<MapState>((set, get) => ({
       connections,
       tasks,
       selectedNodeId: null,
+      selectedNodeIds: new Set<string>(),
       selectedConnectionId: null,
       history: [],
       historyIndex: 0,
@@ -161,10 +183,39 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   upsertMap: (map) => set({ map }),
 
-  selectNode: (id) => set({ selectedNodeId: id, selectedConnectionId: null }),
+  selectNode: (id) =>
+    set({
+      selectedNodeId: id,
+      selectedNodeIds: id ? new Set([id]) : new Set<string>(),
+      selectedConnectionId: null,
+    }),
+
+  toggleNodeSelection: (id) =>
+    set((s) => {
+      const next = new Set(s.selectedNodeIds)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return {
+        selectedNodeIds: next,
+        // selectedNodeId nur wenn genau 1 selektiert — sonst kein Detail-Panel
+        selectedNodeId: next.size === 1 ? Array.from(next)[0]! : null,
+        selectedConnectionId: null,
+      }
+    }),
+
+  setNodeSelection: (ids) =>
+    set({
+      selectedNodeIds: new Set(ids),
+      selectedNodeId: ids.length === 1 ? ids[0]! : null,
+      selectedConnectionId: null,
+    }),
 
   selectConnection: (id) =>
-    set({ selectedConnectionId: id, selectedNodeId: null }),
+    set({
+      selectedConnectionId: id,
+      selectedNodeId: null,
+      selectedNodeIds: new Set<string>(),
+    }),
 
   patchNodeLocal: (id, patch) =>
     set((s) => ({
@@ -182,14 +233,19 @@ export const useMapStore = create<MapState>((set, get) => ({
     }),
 
   removeNode: (id) =>
-    set((s) => ({
-      nodes: s.nodes.filter((n) => n.id !== id),
-      connections: s.connections.filter(
-        (c) => c.from_node_id !== id && c.to_node_id !== id,
-      ),
-      tasks: s.tasks.filter((t) => t.node_id !== id),
-      selectedNodeId: s.selectedNodeId === id ? null : s.selectedNodeId,
-    })),
+    set((s) => {
+      const nextIds = new Set(s.selectedNodeIds)
+      nextIds.delete(id)
+      return {
+        nodes: s.nodes.filter((n) => n.id !== id),
+        connections: s.connections.filter(
+          (c) => c.from_node_id !== id && c.to_node_id !== id,
+        ),
+        tasks: s.tasks.filter((t) => t.node_id !== id),
+        selectedNodeId: s.selectedNodeId === id ? null : s.selectedNodeId,
+        selectedNodeIds: nextIds,
+      }
+    }),
 
   upsertConnection: (conn) =>
     set((s) => {

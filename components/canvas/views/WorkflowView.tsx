@@ -40,6 +40,9 @@ type DragState =
       startMouseY: number
       startX: number
       startY: number
+      // Bulk-Drag: alle weiteren selektierten Knoten mit ihren Start-Positionen.
+      // Leeres Array = single-Drag wie bisher.
+      others: { nodeId: string; startX: number; startY: number }[]
     }
   | {
       kind: 'resize-node'
@@ -68,6 +71,7 @@ export function WorkflowView({ mapId }: Props) {
   const nodes = useMapStore((s) => s.nodes)
   const connections = useMapStore((s) => s.connections)
   const selectedNodeId = useMapStore((s) => s.selectedNodeId)
+  const selectedNodeIds = useMapStore((s) => s.selectedNodeIds)
   const map = useMapStore((s) => s.map)
   const historyIndex = useMapStore((s) => s.historyIndex)
   const historyLength = useMapStore((s) => s.history.length)
@@ -108,17 +112,31 @@ export function WorkflowView({ mapId }: Props) {
     }
 
     if (state.kind === 'drag-node') {
-      let newX = Math.round(state.startX + dx / currentScale)
-      let newY = Math.round(state.startY + dy / currentScale)
-      // Snap-to-Grid: 24px-Raster (matcht das Hintergrund-Pattern)
-      if (useUIStore.getState().snapToGrid) {
-        newX = Math.round(newX / 24) * 24
-        newY = Math.round(newY / 24) * 24
+      const snap = useUIStore.getState().snapToGrid
+      // Effektives Delta in Map-Koordinaten — konsistent für alle Knoten,
+      // damit relative Abstände bei Bulk-Drag erhalten bleiben.
+      let effDx = Math.round(dx / currentScale)
+      let effDy = Math.round(dy / currentScale)
+      if (snap) {
+        // Auf den primären Knoten aligned snappen, dann delta reisen lassen
+        const targetX =
+          Math.round((state.startX + effDx) / 24) * 24 - state.startX
+        const targetY =
+          Math.round((state.startY + effDy) / 24) * 24 - state.startY
+        effDx = targetX
+        effDy = targetY
       }
       useMapStore.getState().patchNodeLocal(state.nodeId, {
-        position_x: newX,
-        position_y: newY,
+        position_x: state.startX + effDx,
+        position_y: state.startY + effDy,
       })
+      // Mit-bewegen aller anderen Bulk-Selected
+      for (const o of state.others) {
+        useMapStore.getState().patchNodeLocal(o.nodeId, {
+          position_x: o.startX + effDx,
+          position_y: o.startY + effDy,
+        })
+      }
       return
     }
 
@@ -172,27 +190,71 @@ export function WorkflowView({ mapId }: Props) {
     dragRef.current = null
 
     if (state.kind === 'drag-node') {
-      const n = useMapStore
-        .getState()
-        .nodes.find((x) => x.id === state.nodeId)
-      if (
-        n &&
-        (n.position_x !== state.startX || n.position_y !== state.startY)
-      ) {
-        // History für Undo
+      const allNodes = useMapStore.getState().nodes
+      const primary = allNodes.find((x) => x.id === state.nodeId)
+      if (!primary) return
+
+      const moved =
+        primary.position_x !== state.startX ||
+        primary.position_y !== state.startY
+
+      if (state.others.length === 0) {
+        // Single-Drag — wie bisher
+        if (moved) {
+          useMapStore.getState().pushHistory({
+            type: 'patch-node',
+            nodeId: state.nodeId,
+            before: { position_x: state.startX, position_y: state.startY },
+            after: {
+              position_x: primary.position_x,
+              position_y: primary.position_y,
+            },
+          })
+          savedAction(() =>
+            updateNodeAction(state.nodeId, {
+              position_x: primary.position_x,
+              position_y: primary.position_y,
+            }),
+          ).catch((err) =>
+            console.error('Position konnte nicht gespeichert werden', err),
+          )
+        }
+      } else if (moved) {
+        // Bulk-Drag — ein History-Eintrag für alle, parallele Server-Saves
+        const patches = [
+          {
+            nodeId: state.nodeId,
+            before: { position_x: state.startX, position_y: state.startY },
+            after: {
+              position_x: primary.position_x,
+              position_y: primary.position_y,
+            },
+          },
+          ...state.others.flatMap((o) => {
+            const n = allNodes.find((x) => x.id === o.nodeId)
+            if (!n) return []
+            return [
+              {
+                nodeId: o.nodeId,
+                before: { position_x: o.startX, position_y: o.startY },
+                after: {
+                  position_x: n.position_x,
+                  position_y: n.position_y,
+                },
+              },
+            ]
+          }),
+        ]
         useMapStore.getState().pushHistory({
-          type: 'patch-node',
-          nodeId: state.nodeId,
-          before: { position_x: state.startX, position_y: state.startY },
-          after: { position_x: n.position_x, position_y: n.position_y },
+          type: 'bulk-patch-nodes',
+          patches,
         })
         savedAction(() =>
-          updateNodeAction(state.nodeId, {
-            position_x: n.position_x,
-            position_y: n.position_y,
-          }),
+          Promise.all(
+            patches.map((p) => updateNodeAction(p.nodeId, p.after)),
+          ),
         ).catch((err) =>
-          console.error('Position konnte nicht gespeichert werden', err),
+          console.error('Bulk-Positionen konnten nicht gespeichert werden', err),
         )
       }
     } else if (state.kind === 'resize-node') {
@@ -245,8 +307,12 @@ export function WorkflowView({ mapId }: Props) {
 
   const onBackgroundMouseDown = (e: ReactMouseEvent) => {
     if (e.button !== 0) return
-    useMapStore.getState().selectNode(null)
-    useMapStore.getState().selectConnection(null)
+    // Shift+Background-Klick: Selektion BEIBEHALTEN (Pan ohne Auswahl-Verlust),
+    // damit Multi-Select-User scrollen können ohne ihre Auswahl zu verlieren.
+    if (!e.shiftKey) {
+      useMapStore.getState().selectNode(null)
+      useMapStore.getState().selectConnection(null)
+    }
     dragRef.current = {
       kind: 'pan',
       startMouseX: e.clientX,
@@ -262,6 +328,16 @@ export function WorkflowView({ mapId }: Props) {
     e.stopPropagation()
 
     const ui = useUIStore.getState()
+    const store = useMapStore.getState()
+
+    // Shift / Cmd / Ctrl + Click → Multi-Select toggeln, KEIN Drag starten
+    if (
+      !ui.connectMode &&
+      (e.shiftKey || e.metaKey || e.ctrlKey)
+    ) {
+      store.toggleNodeSelection(node.id)
+      return
+    }
 
     if (ui.connectMode) {
       if (!ui.connectFromNodeId) {
@@ -314,7 +390,30 @@ export function WorkflowView({ mapId }: Props) {
       return
     }
 
-    useMapStore.getState().selectNode(node.id)
+    // Wenn der angeklickte Knoten Teil einer bestehenden Multi-Selection ist:
+    // Selection NICHT zurücksetzen (sonst geht Bulk verloren) → Bulk-Drag
+    // mit allen Selected. Sonst: Single-Select + Single-Drag.
+    const currentSelected = store.selectedNodeIds
+    const isPartOfMulti =
+      currentSelected.size > 1 && currentSelected.has(node.id)
+
+    const others: { nodeId: string; startX: number; startY: number }[] = []
+    if (isPartOfMulti) {
+      const nodesById = new Map(store.nodes.map((n) => [n.id, n]))
+      for (const id of currentSelected) {
+        if (id === node.id) continue
+        const n = nodesById.get(id)
+        if (!n) continue
+        others.push({
+          nodeId: id,
+          startX: n.position_x,
+          startY: n.position_y,
+        })
+      }
+    } else {
+      store.selectNode(node.id)
+    }
+
     dragRef.current = {
       kind: 'drag-node',
       nodeId: node.id,
@@ -322,6 +421,7 @@ export function WorkflowView({ mapId }: Props) {
       startMouseY: e.clientY,
       startX: node.position_x,
       startY: node.position_y,
+      others,
     }
     startDragListeners()
   }
@@ -392,26 +492,52 @@ export function WorkflowView({ mapId }: Props) {
         redo()
         return
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && sel) {
-        e.preventDefault()
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         const state = useMapStore.getState()
-        const node = state.nodes.find((n) => n.id === sel)
-        if (node) {
-          const conns = state.connections.filter(
-            (c) => c.from_node_id === sel || c.to_node_id === sel,
+        const ids = Array.from(state.selectedNodeIds)
+        if (ids.length === 0) return
+        e.preventDefault()
+
+        if (ids.length === 1) {
+          // Single-Delete (alter Pfad)
+          const id = ids[0]!
+          const node = state.nodes.find((n) => n.id === id)
+          if (node) {
+            const conns = state.connections.filter(
+              (c) => c.from_node_id === id || c.to_node_id === id,
+            )
+            const tasks = state.tasks.filter((t) => t.node_id === id)
+            state.pushHistory({
+              type: 'delete-node',
+              node,
+              connections: conns,
+              tasks,
+            })
+          }
+          state.removeNode(id)
+          savedAction(() => deleteNodeAction(id)).catch((err) =>
+            console.error('Knoten konnte nicht gelöscht werden', err),
           )
-          const tasks = state.tasks.filter((t) => t.node_id === sel)
-          state.pushHistory({
-            type: 'delete-node',
-            node,
-            connections: conns,
-            tasks,
+        } else {
+          // Bulk-Delete
+          const idSet = new Set(ids)
+          const items = ids.flatMap((id) => {
+            const node = state.nodes.find((n) => n.id === id)
+            if (!node) return []
+            const conns = state.connections.filter(
+              (c) => c.from_node_id === id || c.to_node_id === id,
+            )
+            const tasks = state.tasks.filter((t) => t.node_id === id)
+            return [{ node, connections: conns, tasks }]
           })
+          state.pushHistory({ type: 'bulk-delete-nodes', items })
+          for (const id of idSet) state.removeNode(id)
+          savedAction(() =>
+            Promise.all(ids.map((id) => deleteNodeAction(id))),
+          ).catch((err) =>
+            console.error('Knoten konnten nicht gelöscht werden', err),
+          )
         }
-        state.removeNode(sel)
-        savedAction(() => deleteNodeAction(sel)).catch((err) =>
-          console.error('Knoten konnte nicht gelöscht werden', err),
-        )
       } else if (e.key === 'Escape') {
         useMapStore.getState().selectNode(null)
         useMapStore.getState().selectConnection(null)
@@ -502,20 +628,48 @@ export function WorkflowView({ mapId }: Props) {
 
   const handleDeleteSelected = async () => {
     const state = useMapStore.getState()
-    const id = state.selectedNodeId
-    if (!id) return
-    const node = state.nodes.find((n) => n.id === id)
-    if (!node) return
-    // Connections die zum Knoten gehören — für Undo speichern
-    const conns = state.connections.filter(
-      (c) => c.from_node_id === id || c.to_node_id === id,
-    )
-    const tasks = state.tasks.filter((t) => t.node_id === id)
-    state.pushHistory({ type: 'delete-node', node, connections: conns, tasks })
+    const ids = Array.from(state.selectedNodeIds)
+    if (ids.length === 0) return
 
-    state.removeNode(id)
+    if (ids.length === 1) {
+      const id = ids[0]!
+      const node = state.nodes.find((n) => n.id === id)
+      if (!node) return
+      const conns = state.connections.filter(
+        (c) => c.from_node_id === id || c.to_node_id === id,
+      )
+      const tasks = state.tasks.filter((t) => t.node_id === id)
+      state.pushHistory({
+        type: 'delete-node',
+        node,
+        connections: conns,
+        tasks,
+      })
+      state.removeNode(id)
+      try {
+        await savedAction(() => deleteNodeAction(id))
+      } catch (err) {
+        console.error(err)
+      }
+      return
+    }
+
+    // Bulk
+    const items = ids.flatMap((id) => {
+      const node = state.nodes.find((n) => n.id === id)
+      if (!node) return []
+      const conns = state.connections.filter(
+        (c) => c.from_node_id === id || c.to_node_id === id,
+      )
+      const tasks = state.tasks.filter((t) => t.node_id === id)
+      return [{ node, connections: conns, tasks }]
+    })
+    state.pushHistory({ type: 'bulk-delete-nodes', items })
+    for (const id of ids) state.removeNode(id)
     try {
-      await savedAction(() => deleteNodeAction(id))
+      await savedAction(() =>
+        Promise.all(ids.map((id) => deleteNodeAction(id))),
+      )
     } catch (err) {
       console.error(err)
     }
@@ -569,7 +723,7 @@ export function WorkflowView({ mapId }: Props) {
       <CanvasToolbar
         scale={scale}
         connectMode={connectMode}
-        selectedExists={selectedNodeId !== null}
+        selectedExists={selectedNodeIds.size > 0}
         canUndo={canUndoNow}
         canRedo={canRedoNow}
         onAddNode={handleAddNode}
@@ -594,6 +748,12 @@ export function WorkflowView({ mapId }: Props) {
       {focusMode && selectedNodeId && (
         <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full bg-purple px-4 py-1.5 text-sm font-medium text-white shadow-mid">
           Focus-Mode aktiv · Drück <kbd className="rounded bg-white/20 px-1 font-mono text-xs">F</kbd> oder <kbd className="rounded bg-white/20 px-1 font-mono text-xs">Esc</kbd> zum Aufheben
+        </div>
+      )}
+
+      {selectedNodeIds.size > 1 && !connectMode && (
+        <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full bg-purple px-4 py-1.5 text-sm font-medium text-white shadow-mid">
+          {selectedNodeIds.size} Knoten ausgewählt · Ziehen verschiebt alle, <kbd className="rounded bg-white/20 px-1 font-mono text-xs">⌫</kbd> löscht alle, <kbd className="rounded bg-white/20 px-1 font-mono text-xs">Esc</kbd> hebt auf
         </div>
       )}
 
@@ -642,11 +802,15 @@ export function WorkflowView({ mapId }: Props) {
         {nodes.map((node) => {
           const dimmed =
             focusVisibleIds !== null && !focusVisibleIds.has(node.id)
+          const isSingleSelected = selectedNodeId === node.id
+          const isInMulti =
+            selectedNodeIds.size > 1 && selectedNodeIds.has(node.id)
           return (
             <Node
               key={node.id}
               node={node}
-              selected={selectedNodeId === node.id}
+              selected={isSingleSelected}
+              multiSelected={isInMulti}
               connectMode={connectMode}
               isConnectStart={connectFromNodeId === node.id}
               dimmed={dimmed}
