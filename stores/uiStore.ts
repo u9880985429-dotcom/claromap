@@ -23,6 +23,7 @@ interface UIState {
   connectMode: boolean
   connectFromNodeId: string | null
   focusMode: boolean
+  snapToGrid: boolean
 
   setView: (v: ViewName) => void
   setDetailLevel: (l: DetailLevel) => void
@@ -35,6 +36,7 @@ interface UIState {
   setConnectFromNodeId: (id: string | null) => void
   toggleFocusMode: () => void
   setFocusMode: (v: boolean) => void
+  toggleSnapToGrid: () => void
 }
 
 const MIN_SCALE = 0.2
@@ -50,6 +52,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   connectMode: false,
   connectFromNodeId: null,
   focusMode: false,
+  snapToGrid: false,
 
   setView: (v) => set({ view: v }),
   setDetailLevel: (l) => set({ detailLevel: l }),
@@ -76,4 +79,5 @@ export const useUIStore = create<UIState>((set, get) => ({
   setConnectFromNodeId: (id) => set({ connectFromNodeId: id }),
   toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
   setFocusMode: (v) => set({ focusMode: v }),
+  toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
 }))

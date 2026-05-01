@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings } from 'lucide-react'
+import { Settings, Magnet } from 'lucide-react'
 import { useMapStore } from '@/stores/mapStore'
 import { useUIStore, type Theme } from '@/stores/uiStore'
 import { updateMapAction } from '@/app/(dashboard)/maps/[id]/actions'
@@ -25,6 +25,8 @@ export function MapSettings() {
   const [open, setOpen] = useState(false)
   const map = useMapStore((s) => s.map)
   const setTheme = useUIStore((s) => s.setTheme)
+  const snapToGrid = useUIStore((s) => s.snapToGrid)
+  const toggleSnap = useUIStore((s) => s.toggleSnapToGrid)
 
   if (!map) return null
 
@@ -114,6 +116,32 @@ export function MapSettings() {
                 value={map.background_color}
                 onChange={(c) => patchAndSave({ background_color: c })}
               />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text3">
+                Verhalten
+              </label>
+              <button
+                type="button"
+                onClick={toggleSnap}
+                className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition ${
+                  snapToGrid
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-line2 bg-bg2 text-text2 hover:bg-bg3'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Magnet size={14} />
+                  Am Raster ausrichten (24px)
+                </span>
+                <span className="font-mono text-xs">
+                  {snapToGrid ? 'AN' : 'AUS'}
+                </span>
+              </button>
+              <p className="mt-1 text-xs text-text4">
+                Knoten rasten beim Ziehen an einem 24-Pixel-Raster ein.
+              </p>
             </div>
           </div>
         </>

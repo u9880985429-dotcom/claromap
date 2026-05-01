@@ -26,6 +26,15 @@ export function DetailPanel() {
 
 function NodeEditor({ node }: { node: NodeRow }) {
   const patchAndSave = async (patch: Partial<NodeRow>) => {
+    // Vor-Werte für Undo speichern (nur die Felder die sich ändern)
+    const before: Partial<NodeRow> = {}
+    for (const k of Object.keys(patch) as (keyof NodeRow)[]) {
+      // @ts-expect-error -- Index access for partial copy
+      before[k] = node[k]
+    }
+    useMapStore
+      .getState()
+      .pushHistory({ type: 'patch-node', nodeId: node.id, before, after: patch })
     useMapStore.getState().patchNodeLocal(node.id, patch)
     try {
       await savedAction(() => updateNodeAction(node.id, patch))

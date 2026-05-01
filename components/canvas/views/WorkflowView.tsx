@@ -108,8 +108,13 @@ export function WorkflowView({ mapId }: Props) {
     }
 
     if (state.kind === 'drag-node') {
-      const newX = Math.round(state.startX + dx / currentScale)
-      const newY = Math.round(state.startY + dy / currentScale)
+      let newX = Math.round(state.startX + dx / currentScale)
+      let newY = Math.round(state.startY + dy / currentScale)
+      // Snap-to-Grid: 24px-Raster (matcht das Hintergrund-Pattern)
+      if (useUIStore.getState().snapToGrid) {
+        newX = Math.round(newX / 24) * 24
+        newY = Math.round(newY / 24) * 24
+      }
       useMapStore.getState().patchNodeLocal(state.nodeId, {
         position_x: newX,
         position_y: newY,
