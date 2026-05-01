@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { X, Plus, Search } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { X, Plus, Search, LayoutTemplate } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import {
   TEMPLATES,
@@ -9,10 +10,13 @@ import {
   type TemplateCategory,
 } from '@/lib/data/templates'
 import { createMapFromTemplateAction } from '@/app/(dashboard)/maps/actions'
+import { applyTemplateToMapAction } from '@/app/(dashboard)/maps/[id]/actions'
 
 interface Props {
   open: boolean
   onClose: () => void
+  mode?: 'create' | 'apply'
+  mapId?: string
 }
 
 const CATEGORIES: ('all' | TemplateCategory)[] = [
@@ -26,7 +30,13 @@ const CATEGORIES: ('all' | TemplateCategory)[] = [
   'strategie',
 ]
 
-export function TemplatePicker({ open, onClose }: Props) {
+export function TemplatePicker({
+  open,
+  onClose,
+  mode = 'create',
+  mapId,
+}: Props) {
+  const router = useRouter()
   const [activeCat, setActiveCat] = useState<'all' | TemplateCategory>('all')
   const [search, setSearch] = useState('')
   const [pending, startTransition] = useTransition()
@@ -48,12 +58,20 @@ export function TemplatePicker({ open, onClose }: Props) {
     setPickingId(templateId)
     startTransition(async () => {
       try {
-        await createMapFromTemplateAction(templateId)
+        if (mode === 'apply') {
+          if (!mapId) throw new Error('mapId fehlt im apply-Mode')
+          await applyTemplateToMapAction(mapId, templateId)
+          onClose()
+          // Refresh, damit die neuen Knoten erscheinen
+          router.refresh()
+        } else {
+          await createMapFromTemplateAction(templateId)
+          // Bei create redirected die Server-Action selbst — kein onClose nötig
+        }
       } catch (err) {
-        console.error('Map konnte nicht angelegt werden', err)
+        console.error('Vorlage konnte nicht angewendet werden', err)
         setPickingId(null)
       }
-      // Bei Erfolg redirected die Server-Action — kein onClose nötig
     })
   }
 
@@ -72,11 +90,14 @@ export function TemplatePicker({ open, onClose }: Props) {
         <header className="flex items-center justify-between border-b border-line bg-bg2 px-6 py-4">
           <div>
             <h2 className="font-display text-xl font-bold">
-              Vorlage wählen
+              {mode === 'apply'
+                ? 'Vorlage in diese Map einfügen'
+                : 'Vorlage wählen'}
             </h2>
             <p className="text-xs text-text3">
-              Wähle eine Struktur als Start. Du kannst danach alles frei
-              anpassen.
+              {mode === 'apply'
+                ? 'Die gewählten Knoten werden rechts neben deinem bisherigen Inhalt eingefügt. Step-Nummern werden automatisch fortgezählt.'
+                : 'Wähle eine Struktur als Start. Du kannst danach alles frei anpassen.'}
             </p>
           </div>
           <button
@@ -200,7 +221,30 @@ export function NewMapButton() {
         <Plus size={16} />
         Neue Map
       </button>
-      <TemplatePicker open={open} onClose={() => setOpen(false)} />
+      <TemplatePicker open={open} onClose={() => setOpen(false)} mode="create" />
+    </>
+  )
+}
+
+export function AddTemplateButton({ mapId }: { mapId: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 rounded-md border border-line bg-bg2 px-2.5 py-1 text-xs text-text2 transition hover:bg-bg3"
+        title="Eine Vorlage in diese Map einfügen"
+      >
+        <LayoutTemplate size={14} />
+        <span>Vorlage einfügen</span>
+      </button>
+      <TemplatePicker
+        open={open}
+        onClose={() => setOpen(false)}
+        mode="apply"
+        mapId={mapId}
+      />
     </>
   )
 }

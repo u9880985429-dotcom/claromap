@@ -10,6 +10,7 @@ import { ViewSwitcher } from '@/components/canvas/ViewSwitcher'
 import { MapSettings } from '@/components/canvas/MapSettings'
 import { MapTitle } from '@/components/canvas/MapTitle'
 import { HealthScore } from '@/components/canvas/HealthScore'
+import { AddTemplateButton } from '@/components/canvas/TemplatePicker'
 
 export default async function MapPage({
   params,
@@ -44,6 +45,7 @@ export default async function MapPage({
 
         <div className="flex items-center gap-3">
           <ViewSwitcher />
+          <AddTemplateButton mapId={map.id} />
           <MapSettings />
         </div>
       </div>
