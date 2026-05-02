@@ -88,6 +88,15 @@ export function CanvasContainer({
     }
   }, [])
 
+  // Hydrate comfort-mode aus localStorage (auf Map-Edit-Seite einmal)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const saved = localStorage.getItem('claromap.comfort')
+    if (saved === 'true') {
+      useUIStore.getState().setComfortMode(true)
+    }
+  }, [])
+
   return (
     <div className="flex h-full overflow-hidden">
       <div className="relative flex-1 overflow-hidden">

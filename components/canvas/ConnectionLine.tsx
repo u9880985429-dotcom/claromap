@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { NodeRow, ConnectionRow } from '@/stores/mapStore'
 
 interface Props {
@@ -7,7 +8,7 @@ interface Props {
   handDrawn?: boolean
 }
 
-export function ConnectionLine({
+function ConnectionLineImpl({
   connection,
   fromNode,
   toNode,
@@ -106,3 +107,17 @@ export function ConnectionLine({
     </g>
   )
 }
+
+// React.memo: ConnectionLine ist rein präsentational, hängt nur an Props.
+// Identity-Vergleich auf alle drei (connection/fromNode/toNode), wir
+// brauchen keinen tiefen Vergleich, weil mapStore neue Object-Refs liefert
+// wenn sich Werte ändern.
+export const ConnectionLine = memo(ConnectionLineImpl, (prev, next) => {
+  return (
+    prev.connection === next.connection &&
+    prev.fromNode === next.fromNode &&
+    prev.toNode === next.toNode &&
+    prev.handDrawn === next.handDrawn
+  )
+})
+

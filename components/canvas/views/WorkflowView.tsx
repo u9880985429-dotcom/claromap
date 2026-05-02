@@ -326,7 +326,7 @@ export function WorkflowView({ mapId }: Props) {
     startDragListeners()
   }
 
-  const onNodeMouseDown = (e: ReactMouseEvent, node: NodeRow) => {
+  const onNodeMouseDown = useCallback((e: ReactMouseEvent, node: NodeRow) => {
     if (e.button !== 0) return
     e.stopPropagation()
 
@@ -440,9 +440,9 @@ export function WorkflowView({ mapId }: Props) {
       others,
     }
     startDragListeners()
-  }
+  }, [mapId, startDragListeners])
 
-  const onResizeHandleMouseDown = (
+  const onResizeHandleMouseDown = useCallback((
     e: ReactMouseEvent,
     node: NodeRow,
     corner: ResizeCorner,
@@ -462,12 +462,12 @@ export function WorkflowView({ mapId }: Props) {
       startH: node.height,
     }
     startDragListeners()
-  }
+  }, [startDragListeners])
 
-  const onConnectionClick = (e: ReactMouseEvent<SVGGElement>, id: string) => {
+  const onConnectionClick = useCallback((e: ReactMouseEvent<SVGGElement>, id: string) => {
     e.stopPropagation()
     useMapStore.getState().selectConnection(id)
-  }
+  }, [])
 
   // Wheel zoom (native listener for passive:false)
   useEffect(() => {

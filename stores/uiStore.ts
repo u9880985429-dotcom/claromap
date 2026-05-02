@@ -29,6 +29,10 @@ interface UIState {
   // Hand-Tool: wenn aktiv, ist jeder Klick (auch auf Knoten) ein Pan.
   // Toggle-Button in der Toolbar oder Hotkey "H".
   handTool: boolean
+  // Komfort-Modus: größere Bedienelemente, kräftigerer Kontrast,
+  // dickere Outlines. Für Senior:innen oder Touch-Bedienung.
+  // Persistiert via localStorage als 'claromap.comfort'.
+  comfortMode: boolean
 
   setView: (v: ViewName) => void
   setDetailLevel: (l: DetailLevel) => void
@@ -46,6 +50,8 @@ interface UIState {
   setMapsSidebarOpen: (open: boolean) => void
   toggleHandTool: () => void
   setHandTool: (v: boolean) => void
+  toggleComfortMode: () => void
+  setComfortMode: (v: boolean) => void
 }
 
 const MIN_SCALE = 0.2
@@ -66,6 +72,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   // localStorage hydratisiert, um SSR/Client-Mismatch zu vermeiden.
   mapsSidebarOpen: true,
   handTool: false,
+  comfortMode: false,
 
   setView: (v) => set({ view: v }),
   setDetailLevel: (l) => set({ detailLevel: l }),
@@ -110,4 +117,21 @@ export const useUIStore = create<UIState>((set, get) => ({
     }),
   toggleHandTool: () => set((s) => ({ handTool: !s.handTool })),
   setHandTool: (v) => set({ handTool: v }),
+  toggleComfortMode: () =>
+    set((s) => {
+      const next = !s.comfortMode
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('claromap.comfort', String(next))
+        document.body.toggleAttribute('data-comfort', next)
+      }
+      return { comfortMode: next }
+    }),
+  setComfortMode: (v) =>
+    set(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('claromap.comfort', String(v))
+        document.body.toggleAttribute('data-comfort', v)
+      }
+      return { comfortMode: v }
+    }),
 }))

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { ComfortModeHydrator } from './ComfortModeHydrator'
 
 export const metadata: Metadata = {
   title: 'Claromap — Visuelles Mapping für Leben & Business',
@@ -12,7 +13,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="de" className="h-full antialiased">
-      <body className="min-h-full font-body bg-bg text-text">{children}</body>
+      <body className="min-h-full font-body bg-bg text-text">
+        <ComfortModeHydrator />
+        {children}
+      </body>
     </html>
   )
 }

@@ -177,3 +177,51 @@ body[data-theme="hand"] .claromap-card {
 body[data-theme="dark"] {
   color-scheme: dark;
 }
+
+/* Komfort-Modus: vergrößert Bedienelemente und Schriften.
+   Aktivierung via Map-Settings → "Komfort-Modus" → setzt data-comfort
+   am body. */
+body[data-comfort] {
+  font-size: 17px;
+}
+
+body[data-comfort] button,
+body[data-comfort] [role="button"],
+body[data-comfort] input,
+body[data-comfort] select,
+body[data-comfort] textarea {
+  /* Sichtbarer Fokus-Ring + minimal größere Hit-Area */
+  font-size: 0.95rem;
+}
+
+body[data-comfort] button:focus-visible,
+body[data-comfort] [role="button"]:focus-visible,
+body[data-comfort] input:focus-visible,
+body[data-comfort] select:focus-visible,
+body[data-comfort] textarea:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Toolbar-Icon-Buttons: 32x32 → 40x40 */
+body[data-comfort] .h-8.w-8 {
+  height: 2.5rem !important;
+  width: 2.5rem !important;
+}
+
+/* Linien-Texte deutlicher */
+body[data-comfort] .text-xs {
+  font-size: 0.85rem !important;
+  line-height: 1.4 !important;
+}
+
+body[data-comfort] .text-\[10px\],
+body[data-comfort] .text-\[11px\] {
+  font-size: 0.8rem !important;
+}
+
+body[data-comfort] .text-text3,
+body[data-comfort] .text-text4 {
+  /* Sekundärtext etwas dunkler / heller je nach Theme für Lesbarkeit */
+  color: var(--text2) !important;
+}

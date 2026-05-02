@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  memo,
   useEffect,
   useRef,
   useState,
@@ -30,7 +31,7 @@ interface Props {
   ) => void
 }
 
-export function Node({
+function NodeImpl({
   node,
   selected,
   multiSelected = false,
@@ -344,3 +345,25 @@ function ResizeHandle({
     />
   )
 }
+
+/**
+ * React.memo: re-rendert nur wenn sich props ändern. Reduziert deutlich
+ * die Anzahl Re-Renders während Drag/Pan/Zoom (jeder Knoten wird sonst
+ * bei jeder Maus-Bewegung neu gerendert, weil der Parent neu rendert).
+ *
+ * Custom comparator: Identity-Vergleich auf node + flat-Vergleich auf
+ * scalar booleans. Funktionen `onMouseDownNode` / `onMouseDownHandle` werden
+ * im WorkflowView per useCallback stabil gehalten.
+ */
+export const Node = memo(NodeImpl, (prev, next) => {
+  if (prev.node !== next.node) return false
+  if (prev.selected !== next.selected) return false
+  if (prev.multiSelected !== next.multiSelected) return false
+  if (prev.connectMode !== next.connectMode) return false
+  if (prev.isConnectStart !== next.isConnectStart) return false
+  if (prev.dimmed !== next.dimmed) return false
+  if (prev.onMouseDownNode !== next.onMouseDownNode) return false
+  if (prev.onMouseDownHandle !== next.onMouseDownHandle) return false
+  return true
+})
+

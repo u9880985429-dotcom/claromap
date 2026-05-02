@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings, Magnet } from 'lucide-react'
+import { Settings, Magnet, Accessibility } from 'lucide-react'
 import { useMapStore } from '@/stores/mapStore'
 import { useUIStore, type Theme } from '@/stores/uiStore'
 import { updateMapAction } from '@/app/(dashboard)/maps/[id]/actions'
@@ -27,6 +27,8 @@ export function MapSettings() {
   const setTheme = useUIStore((s) => s.setTheme)
   const snapToGrid = useUIStore((s) => s.snapToGrid)
   const toggleSnap = useUIStore((s) => s.toggleSnapToGrid)
+  const comfortMode = useUIStore((s) => s.comfortMode)
+  const toggleComfort = useUIStore((s) => s.toggleComfortMode)
 
   if (!map) return null
 
@@ -141,6 +143,27 @@ export function MapSettings() {
               </button>
               <p className="mt-1 text-xs text-text4">
                 Knoten rasten beim Ziehen an einem 24-Pixel-Raster ein.
+              </p>
+
+              <button
+                type="button"
+                onClick={toggleComfort}
+                className={`mt-2 flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition ${
+                  comfortMode
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-line2 bg-bg2 text-text2 hover:bg-bg3'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Accessibility size={14} />
+                  Komfort-Modus (größer + besser lesbar)
+                </span>
+                <span className="font-mono text-xs">
+                  {comfortMode ? 'AN' : 'AUS'}
+                </span>
+              </button>
+              <p className="mt-1 text-xs text-text4">
+                Größere Knöpfe und Schrift, deutlicher Fokus-Rahmen.
               </p>
             </div>
           </div>
