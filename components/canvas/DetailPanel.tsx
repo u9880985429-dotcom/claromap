@@ -14,6 +14,7 @@ import { StatusPicker, type StatusValue } from './pickers/StatusPicker'
 import { ShapePicker, type ShapeValue } from './pickers/ShapePicker'
 import { TaskList } from './TaskList'
 import { AnnotationList } from './AnnotationList'
+import { NodeImageUpload } from './NodeImageUpload'
 
 export function DetailPanel() {
   const selectedNodeId = useMapStore((s) => s.selectedNodeId)
@@ -239,6 +240,10 @@ function NodeEditor({ node }: { node: NodeRow }) {
             value={node.color}
             onChange={(c) => patchAndSave({ color: c })}
           />
+        </Section>
+
+        <Section label="Bild im Hintergrund">
+          <NodeImageUpload node={node} />
         </Section>
 
         <Section label="Textfarbe">

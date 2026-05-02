@@ -219,6 +219,7 @@ export type Database = {
           end_date: string | null
           height: number
           id: string
+          image_url: string | null
           label_position: string
           lane: string | null
           map_id: string
@@ -245,6 +246,7 @@ export type Database = {
           end_date?: string | null
           height?: number
           id?: string
+          image_url?: string | null
           label_position?: string
           lane?: string | null
           map_id: string
@@ -271,6 +273,7 @@ export type Database = {
           end_date?: string | null
           height?: number
           id?: string
+          image_url?: string | null
           label_position?: string
           lane?: string | null
           map_id?: string
@@ -295,6 +298,13 @@ export type Database = {
             columns: ["map_id"]
             isOneToOne: false
             referencedRelation: "maps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nodes_parent_node_id_fkey"
+            columns: ["parent_node_id"]
+            isOneToOne: false
+            referencedRelation: "nodes"
             referencedColumns: ["id"]
           },
         ]
@@ -422,7 +432,6 @@ export type Database = {
           owner_id: string
         }
         Insert: {
-          created_at?: string
           id?: string
           name: string
           owner_id: string
@@ -440,7 +449,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_team_member: { Args: { p_team_id: string }; Returns: boolean }
+      is_team_owner: { Args: { p_team_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

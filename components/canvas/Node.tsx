@@ -80,7 +80,20 @@ export function Node({
         top: node.position_y,
         width: node.width,
         height: node.height,
-        background: isDiamond ? 'transparent' : node.color,
+        // Wenn ein Bild gesetzt ist: Bild als Cover, Farbe als Fallback
+        // dahinter (rendert während das Bild lädt). Bei Diamond bleibt
+        // transparent, weil die clip-path-Form den Hintergrund liefert.
+        ...(isDiamond
+          ? { background: 'transparent' }
+          : node.image_url
+            ? {
+                backgroundColor: node.color,
+                backgroundImage: `url(${node.image_url})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }
+            : { background: node.color }),
         color: node.text_color,
         borderRadius: radius,
         boxShadow: isDiamond
@@ -111,8 +124,27 @@ export function Node({
         <div
           className="absolute inset-0 shadow-soft"
           style={{
-            background: node.color,
+            ...(node.image_url
+              ? {
+                  backgroundColor: node.color,
+                  backgroundImage: `url(${node.image_url})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }
+              : { background: node.color }),
             clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+          }}
+          aria-hidden
+        />
+      )}
+      {/* Subtle dunkler Verlauf wenn Bild gesetzt — lässt Text lesbar bleiben */}
+      {node.image_url && !isDiamond && (
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(to bottom, rgba(0,0,0,0.08), rgba(0,0,0,0.45))',
+            borderRadius: radius,
           }}
           aria-hidden
         />
