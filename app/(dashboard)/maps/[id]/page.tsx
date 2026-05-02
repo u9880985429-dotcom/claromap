@@ -3,6 +3,7 @@ import { getMap, listMapsWithStats } from '@/lib/data/maps'
 import { listNodesByMap } from '@/lib/data/nodes'
 import { listConnectionsByMap } from '@/lib/data/connections'
 import { listTasksByMap } from '@/lib/data/tasks'
+import { listAnnotationsByMap } from '@/lib/data/annotations'
 import { CanvasContainer } from '@/components/canvas/CanvasContainer'
 import { ViewSwitcher } from '@/components/canvas/ViewSwitcher'
 import { MapSettings } from '@/components/canvas/MapSettings'
@@ -23,10 +24,11 @@ export default async function MapPage({
 
   if (!map) notFound()
 
-  const [nodes, connections, tasks, allMaps] = await Promise.all([
+  const [nodes, connections, tasks, annotations, allMaps] = await Promise.all([
     listNodesByMap(id),
     listConnectionsByMap(id),
     listTasksByMap(id),
+    listAnnotationsByMap(id),
     listMapsWithStats(),
   ])
 
@@ -59,6 +61,7 @@ export default async function MapPage({
             initialNodes={nodes}
             initialConnections={connections}
             initialTasks={tasks}
+            initialAnnotations={annotations}
           />
         </div>
       </div>

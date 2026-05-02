@@ -22,6 +22,12 @@ import {
   type TaskInsert,
   type TaskUpdate,
 } from '@/lib/data/tasks'
+import {
+  createAnnotation,
+  deleteAnnotation,
+  updateAnnotation,
+  type AnnotationUpdate,
+} from '@/lib/data/annotations'
 import { getTemplate } from '@/lib/data/templates'
 
 // ---------- MAPS ----------
@@ -200,4 +206,23 @@ export async function updateTaskAction(id: string, patch: TaskUpdate) {
 
 export async function deleteTaskAction(id: string) {
   await deleteTask(id)
+}
+
+// ---------- ANNOTATIONS (Notizen / Kommentare zu einem Knoten) ----------
+export async function createAnnotationAction(input: {
+  node_id: string
+  text: string
+}) {
+  return await createAnnotation(input)
+}
+
+export async function updateAnnotationAction(
+  id: string,
+  patch: AnnotationUpdate,
+) {
+  return await updateAnnotation(id, patch)
+}
+
+export async function deleteAnnotationAction(id: string) {
+  await deleteAnnotation(id)
 }

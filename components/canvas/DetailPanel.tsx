@@ -13,6 +13,7 @@ import { ColorPicker } from './pickers/ColorPicker'
 import { StatusPicker, type StatusValue } from './pickers/StatusPicker'
 import { ShapePicker, type ShapeValue } from './pickers/ShapePicker'
 import { TaskList } from './TaskList'
+import { AnnotationList } from './AnnotationList'
 
 export function DetailPanel() {
   const selectedNodeId = useMapStore((s) => s.selectedNodeId)
@@ -256,6 +257,10 @@ function NodeEditor({ node }: { node: NodeRow }) {
 
         <Section label="Aufgaben">
           <TaskList nodeId={node.id} />
+        </Section>
+
+        <Section label="Notizen / Kommentare">
+          <AnnotationList nodeId={node.id} />
         </Section>
       </div>
 

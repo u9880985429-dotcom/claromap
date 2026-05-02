@@ -31,6 +31,16 @@ const SHORTCUTS: { keys: string[]; desc: string; group: string }[] = [
     group: 'Mehrfach',
   },
   {
+    keys: ['⌘A', 'Strg+A'],
+    desc: 'Alle Knoten auf der Map markieren',
+    group: 'Mehrfach',
+  },
+  {
+    keys: ['⌘D', 'Strg+D'],
+    desc: 'Ausgewählte Knoten duplizieren (mit Offset)',
+    group: 'Mehrfach',
+  },
+  {
     keys: ['Ziehen', 'mehrere selektiert'],
     desc: 'Alle ausgewählten Knoten gleichzeitig verschieben',
     group: 'Mehrfach',

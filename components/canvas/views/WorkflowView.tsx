@@ -16,6 +16,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { Node, type ResizeCorner } from '../Node'
 import { ConnectionLine } from '../ConnectionLine'
 import { CanvasToolbar } from '../CanvasToolbar'
+import { AlignToolbar, type AlignDirection } from '../AlignToolbar'
 import {
   createConnectionAction,
   createNodeAction,
@@ -484,6 +485,213 @@ export function WorkflowView({ mapId }: Props) {
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
+  // Cmd+D: Auswahl duplizieren. Kopien werden mit +24px Offset platziert
+  // damit sie sichtbar versetzt sind. step_number wird hochgezählt.
+  // Nach Erstellung wird die NEUE Auswahl auf die Kopien gesetzt — User
+  // kann sofort Cmd+D nochmal drücken oder die Kopien als Block ziehen.
+  const duplicateSelection = useCallback(async () => {
+    const state = useMapStore.getState()
+    const ids = Array.from(state.selectedNodeIds)
+    if (ids.length === 0) return
+    const sourceNodes = ids
+      .map((id) => state.nodes.find((n) => n.id === id))
+      .filter((n): n is NodeRow => !!n)
+    if (sourceNodes.length === 0) return
+
+    const maxStep =
+      state.nodes.length === 0
+        ? 0
+        : Math.max(...state.nodes.map((n) => n.step_number))
+    const OFFSET = 24
+
+    try {
+      const created: NodeRow[] = []
+      // Sequentiell um deterministische step_number zu vergeben
+      for (let i = 0; i < sourceNodes.length; i++) {
+        const src = sourceNodes[i]!
+        const newNode = await savedAction(() =>
+          createNodeAction({
+            map_id: mapId,
+            step_number: maxStep + 1 + i,
+            emoji: src.emoji,
+            name: src.name,
+            short_desc: src.short_desc,
+            description: src.description,
+            color: src.color,
+            text_color: src.text_color,
+            shape: src.shape,
+            width: src.width,
+            height: src.height,
+            position_x: src.position_x + OFFSET,
+            position_y: src.position_y + OFFSET,
+            status: src.status,
+            status_icon: src.status_icon,
+            progress: src.progress,
+            label_position: src.label_position,
+            lane: src.lane,
+            // parent_node_id, start_date, end_date NICHT mitkopieren —
+            // das wäre meistens nicht das was der User will
+          }),
+        )
+        useMapStore.getState().upsertNode(newNode)
+        useMapStore
+          .getState()
+          .pushHistory({ type: 'create-node', node: newNode })
+        created.push(newNode)
+      }
+      // Auswahl auf die Kopien setzen
+      useMapStore.getState().setNodeSelection(created.map((n) => n.id))
+    } catch (err) {
+      console.error('Knoten konnten nicht dupliziert werden', err)
+    }
+  }, [mapId])
+
+  // Mehrere Knoten ausrichten / verteilen.
+  // - left/center-x/right: an gemeinsamer X-Linie ausrichten
+  // - top/center-y/bottom: an gemeinsamer Y-Linie ausrichten
+  // - distribute-x/y: erste/letzte bleiben, dazwischen gleichmäßig verteilen
+  const alignSelection = useCallback(
+    async (direction: AlignDirection) => {
+      const state = useMapStore.getState()
+      const ids = Array.from(state.selectedNodeIds)
+      if (ids.length < 2) return
+      const items = ids
+        .map((id) => state.nodes.find((n) => n.id === id))
+        .filter((n): n is NodeRow => !!n)
+      if (items.length < 2) return
+
+      const patches: { nodeId: string; before: Partial<NodeRow>; after: Partial<NodeRow> }[] = []
+
+      const minX = Math.min(...items.map((n) => n.position_x))
+      const maxX = Math.max(...items.map((n) => n.position_x + n.width))
+      const minY = Math.min(...items.map((n) => n.position_y))
+      const maxY = Math.max(...items.map((n) => n.position_y + n.height))
+      const centerX = (minX + maxX) / 2
+      const centerY = (minY + maxY) / 2
+
+      if (direction === 'left') {
+        for (const n of items) {
+          if (n.position_x === minX) continue
+          patches.push({
+            nodeId: n.id,
+            before: { position_x: n.position_x },
+            after: { position_x: minX },
+          })
+        }
+      } else if (direction === 'right') {
+        for (const n of items) {
+          const tx = maxX - n.width
+          if (n.position_x === tx) continue
+          patches.push({
+            nodeId: n.id,
+            before: { position_x: n.position_x },
+            after: { position_x: tx },
+          })
+        }
+      } else if (direction === 'center-x') {
+        for (const n of items) {
+          const tx = Math.round(centerX - n.width / 2)
+          if (n.position_x === tx) continue
+          patches.push({
+            nodeId: n.id,
+            before: { position_x: n.position_x },
+            after: { position_x: tx },
+          })
+        }
+      } else if (direction === 'top') {
+        for (const n of items) {
+          if (n.position_y === minY) continue
+          patches.push({
+            nodeId: n.id,
+            before: { position_y: n.position_y },
+            after: { position_y: minY },
+          })
+        }
+      } else if (direction === 'bottom') {
+        for (const n of items) {
+          const ty = maxY - n.height
+          if (n.position_y === ty) continue
+          patches.push({
+            nodeId: n.id,
+            before: { position_y: n.position_y },
+            after: { position_y: ty },
+          })
+        }
+      } else if (direction === 'center-y') {
+        for (const n of items) {
+          const ty = Math.round(centerY - n.height / 2)
+          if (n.position_y === ty) continue
+          patches.push({
+            nodeId: n.id,
+            before: { position_y: n.position_y },
+            after: { position_y: ty },
+          })
+        }
+      } else if (direction === 'distribute-x') {
+        if (items.length < 3) return
+        // Sort nach position_x
+        const sorted = [...items].sort((a, b) => a.position_x - b.position_x)
+        const first = sorted[0]!
+        const last = sorted[sorted.length - 1]!
+        // Räume zwischen den Centern gleichmäßig
+        const firstCenter = first.position_x + first.width / 2
+        const lastCenter = last.position_x + last.width / 2
+        const step = (lastCenter - firstCenter) / (sorted.length - 1)
+        for (let i = 1; i < sorted.length - 1; i++) {
+          const n = sorted[i]!
+          const targetCenter = firstCenter + step * i
+          const tx = Math.round(targetCenter - n.width / 2)
+          if (n.position_x === tx) continue
+          patches.push({
+            nodeId: n.id,
+            before: { position_x: n.position_x },
+            after: { position_x: tx },
+          })
+        }
+      } else if (direction === 'distribute-y') {
+        if (items.length < 3) return
+        const sorted = [...items].sort((a, b) => a.position_y - b.position_y)
+        const first = sorted[0]!
+        const last = sorted[sorted.length - 1]!
+        const firstCenter = first.position_y + first.height / 2
+        const lastCenter = last.position_y + last.height / 2
+        const step = (lastCenter - firstCenter) / (sorted.length - 1)
+        for (let i = 1; i < sorted.length - 1; i++) {
+          const n = sorted[i]!
+          const targetCenter = firstCenter + step * i
+          const ty = Math.round(targetCenter - n.height / 2)
+          if (n.position_y === ty) continue
+          patches.push({
+            nodeId: n.id,
+            before: { position_y: n.position_y },
+            after: { position_y: ty },
+          })
+        }
+      }
+
+      if (patches.length === 0) return
+
+      // Optimistic + Bulk-History + Server-Sync
+      for (const p of patches) {
+        useMapStore.getState().patchNodeLocal(p.nodeId, p.after)
+      }
+      useMapStore
+        .getState()
+        .pushHistory({ type: 'bulk-patch-nodes', patches })
+
+      try {
+        await savedAction(() =>
+          Promise.all(
+            patches.map((p) => updateNodeAction(p.nodeId, p.after)),
+          ),
+        )
+      } catch (err) {
+        console.error('Ausrichten fehlgeschlagen', err)
+      }
+    },
+    [],
+  )
+
   // Keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -505,6 +713,19 @@ export function WorkflowView({ mapId }: Props) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
         e.preventDefault()
         redo()
+        return
+      }
+      // Cmd+A: Alles markieren
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        const allIds = useMapStore.getState().nodes.map((n) => n.id)
+        useMapStore.getState().setNodeSelection(allIds)
+        return
+      }
+      // Cmd+D: Duplizieren der Auswahl (nicht nur einzelner Knoten)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault()
+        void duplicateSelection()
         return
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -572,7 +793,7 @@ export function WorkflowView({ mapId }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [duplicateSelection])
 
   // Eine Funktion für alle Shape-Quick-Adds. Defaults pro Shape, der Rest
   // bleibt Standard (handle_new_user-Trigger setzt sinnvolle Werte).
@@ -746,6 +967,11 @@ export function WorkflowView({ mapId }: Props) {
         onZoomIn={() => useUIStore.getState().zoomBy(1.2)}
         onZoomOut={() => useUIStore.getState().zoomBy(1 / 1.2)}
         onResetView={() => useUIStore.getState().resetView()}
+      />
+
+      <AlignToolbar
+        selectedCount={selectedNodeIds.size}
+        onAlign={alignSelection}
       />
 
       {connectMode && (

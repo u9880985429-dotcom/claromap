@@ -7,6 +7,7 @@ import {
   type NodeRow,
   type ConnectionRow,
   type TaskRow,
+  type AnnotationRow,
 } from '@/stores/mapStore'
 import { useUIStore, type Theme } from '@/stores/uiStore'
 import { DetailPanel } from './DetailPanel'
@@ -40,6 +41,7 @@ interface Props {
   initialNodes: NodeRow[]
   initialConnections: ConnectionRow[]
   initialTasks: TaskRow[]
+  initialAnnotations: AnnotationRow[]
 }
 
 export function CanvasContainer({
@@ -47,6 +49,7 @@ export function CanvasContainer({
   initialNodes,
   initialConnections,
   initialTasks,
+  initialAnnotations,
 }: Props) {
   const view = useUIStore((s) => s.view)
   const selectedNodeId = useMapStore((s) => s.selectedNodeId)
@@ -58,7 +61,13 @@ export function CanvasContainer({
   useEffect(() => {
     useMapStore
       .getState()
-      .init(map, initialNodes, initialConnections, initialTasks)
+      .init(
+        map,
+        initialNodes,
+        initialConnections,
+        initialTasks,
+        initialAnnotations,
+      )
     useUIStore.getState().setTheme(map.theme as Theme)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map.id])

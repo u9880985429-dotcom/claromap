@@ -5,6 +5,7 @@ export type MapRow = Database['public']['Tables']['maps']['Row']
 export type NodeRow = Database['public']['Tables']['nodes']['Row']
 export type ConnectionRow = Database['public']['Tables']['connections']['Row']
 export type TaskRow = Database['public']['Tables']['tasks']['Row']
+export type AnnotationRow = Database['public']['Tables']['annotations']['Row']
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -42,6 +43,7 @@ interface MapState {
   nodes: NodeRow[]
   connections: ConnectionRow[]
   tasks: TaskRow[]
+  annotations: AnnotationRow[]
   selectedNodeId: string | null
   // Set aller selektierten Knoten (Multi-Select). Bei einer Single-Selection
   // ist der Set genau {selectedNodeId}. Bei Multi-Select ist selectedNodeId
@@ -67,6 +69,7 @@ interface MapState {
     nodes: NodeRow[],
     connections: ConnectionRow[],
     tasks: TaskRow[],
+    annotations: AnnotationRow[],
   ) => void
 
   beginSave: () => void
@@ -95,6 +98,10 @@ interface MapState {
   upsertTask: (task: TaskRow) => void
   patchTaskLocal: (id: string, patch: Partial<TaskRow>) => void
   removeTask: (id: string) => void
+
+  upsertAnnotation: (a: AnnotationRow) => void
+  patchAnnotationLocal: (id: string, patch: Partial<AnnotationRow>) => void
+  removeAnnotation: (id: string) => void
 }
 
 export const useMapStore = create<MapState>((set, get) => ({
@@ -102,6 +109,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   nodes: [],
   connections: [],
   tasks: [],
+  annotations: [],
   selectedNodeId: null,
   selectedNodeIds: new Set<string>(),
   selectedConnectionId: null,
@@ -112,12 +120,13 @@ export const useMapStore = create<MapState>((set, get) => ({
   history: [],
   historyIndex: 0,
 
-  init: (map, nodes, connections, tasks) =>
+  init: (map, nodes, connections, tasks, annotations) =>
     set({
       map,
       nodes,
       connections,
       tasks,
+      annotations,
       selectedNodeId: null,
       selectedNodeIds: new Set<string>(),
       selectedConnectionId: null,
@@ -242,6 +251,7 @@ export const useMapStore = create<MapState>((set, get) => ({
           (c) => c.from_node_id !== id && c.to_node_id !== id,
         ),
         tasks: s.tasks.filter((t) => t.node_id !== id),
+        annotations: s.annotations.filter((a) => a.node_id !== id),
         selectedNodeId: s.selectedNodeId === id ? null : s.selectedNodeId,
         selectedNodeIds: nextIds,
       }
@@ -288,4 +298,24 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   removeTask: (id) =>
     set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+
+  upsertAnnotation: (a) =>
+    set((s) => {
+      const exists = s.annotations.some((x) => x.id === a.id)
+      return {
+        annotations: exists
+          ? s.annotations.map((x) => (x.id === a.id ? a : x))
+          : [...s.annotations, a],
+      }
+    }),
+
+  patchAnnotationLocal: (id, patch) =>
+    set((s) => ({
+      annotations: s.annotations.map((a) =>
+        a.id === id ? { ...a, ...patch } : a,
+      ),
+    })),
+
+  removeAnnotation: (id) =>
+    set((s) => ({ annotations: s.annotations.filter((a) => a.id !== id) })),
 }))
