@@ -3,8 +3,10 @@ import type { NodeRow, ConnectionRow } from '@/stores/mapStore'
 
 interface Props {
   connection: ConnectionRow
-  fromNode: NodeRow
-  toNode: NodeRow
+  // Optional, weil eine Verbindung auch an freier Position hängen kann.
+  // In dem Fall sind connection.from_x/y bzw. to_x/y gesetzt.
+  fromNode: NodeRow | null
+  toNode: NodeRow | null
   handDrawn?: boolean
 }
 
@@ -14,18 +16,41 @@ function ConnectionLineImpl({
   toNode,
   handDrawn = false,
 }: Props) {
-  const fromCx = fromNode.position_x + fromNode.width / 2
-  const fromCy = fromNode.position_y + fromNode.height / 2
-  const toCx = toNode.position_x + toNode.width / 2
-  const toCy = toNode.position_y + toNode.height / 2
+  // Start- und Endpunkte berechnen — entweder aus Knoten-Mitte oder aus
+  // freien Koordinaten (free arrow).
+  let fromCx: number
+  let fromCy: number
+  if (fromNode) {
+    fromCx = fromNode.position_x + fromNode.width / 2
+    fromCy = fromNode.position_y + fromNode.height / 2
+  } else if (connection.from_x != null && connection.from_y != null) {
+    fromCx = connection.from_x
+    fromCy = connection.from_y
+  } else {
+    return null
+  }
 
-  // Endpunkt knapp vor dem Ziel-Knoten — sodass die Pfeilspitze nicht im Knoten verschwindet
+  let toCx: number
+  let toCy: number
+  let toRadius = 0
+  if (toNode) {
+    toCx = toNode.position_x + toNode.width / 2
+    toCy = toNode.position_y + toNode.height / 2
+    toRadius = Math.min(toNode.width, toNode.height) / 2
+  } else if (connection.to_x != null && connection.to_y != null) {
+    toCx = connection.to_x
+    toCy = connection.to_y
+    toRadius = 0
+  } else {
+    return null
+  }
+
+  // Endpunkt knapp vor dem Ziel-Knoten — bei freier Position direkt am Punkt
   const dx = toCx - fromCx
   const dy = toCy - fromCy
   const dist = Math.max(1, Math.hypot(dx, dy))
-  const targetRadius = Math.min(toNode.width, toNode.height) / 2
-  const endX = toCx - (dx / dist) * (targetRadius + 6)
-  const endY = toCy - (dy / dist) * (targetRadius + 6)
+  const endX = toCx - (dx / dist) * (toRadius + (toRadius > 0 ? 6 : 0))
+  const endY = toCy - (dy / dist) * (toRadius + (toRadius > 0 ? 6 : 0))
 
   // Bezier-Kontrollpunkt für sanft geschwungene Linie (organischer Look)
   const midX = (fromCx + endX) / 2
@@ -120,4 +145,3 @@ export const ConnectionLine = memo(ConnectionLineImpl, (prev, next) => {
     prev.handDrawn === next.handDrawn
   )
 })
-

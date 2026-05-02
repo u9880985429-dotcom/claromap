@@ -58,7 +58,11 @@ function Galaxy({
   selectedNodeId,
 }: {
   nodes: NodeRow[]
-  connections: { id: string; from_node_id: string; to_node_id: string }[]
+  connections: {
+    id: string
+    from_node_id: string | null
+    to_node_id: string | null
+  }[]
   selectedNodeId: string | null
 }) {
   const groupRef = useRef<THREE.Group>(null)
@@ -99,6 +103,8 @@ function Galaxy({
     <group ref={groupRef}>
       {/* Connections */}
       {connections.map((c) => {
+        // Free-Connection (ohne node-Bindung) gibt's in 3D nicht — überspringen
+        if (!c.from_node_id || !c.to_node_id) return null
         const from = positioned.get(c.from_node_id)
         const to = positioned.get(c.to_node_id)
         if (!from || !to) return null

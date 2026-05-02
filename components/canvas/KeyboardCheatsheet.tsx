@@ -57,6 +57,11 @@ const SHORTCUTS: { keys: string[]; desc: string; group: string }[] = [
     desc: 'Zwei Knoten verbinden',
     group: 'Modi',
   },
+  {
+    keys: ['↗ Freier Pfeil + 2× Klick'],
+    desc: 'Freien Pfeil zwischen zwei Punkten ziehen (ohne Knoten)',
+    group: 'Modi',
+  },
   { keys: ['F'], desc: 'Focus-Mode auf Auswahl', group: 'Modi' },
   {
     keys: ['H'],

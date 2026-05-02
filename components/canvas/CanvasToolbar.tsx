@@ -15,6 +15,7 @@ import {
   Leaf,
   Hand,
   MousePointer2,
+  ArrowUpRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -30,12 +31,14 @@ interface Props {
   scale: number
   connectMode: boolean
   handTool: boolean
+  freeArrowMode: boolean
   selectedExists: boolean
   canUndo: boolean
   canRedo: boolean
   onAddShape: (shape: ShapeKind) => void
   onToggleConnect: () => void
   onToggleHandTool: () => void
+  onToggleFreeArrow: () => void
   onDeleteSelected: () => void
   onUndo: () => void
   onRedo: () => void
@@ -48,12 +51,14 @@ export function CanvasToolbar({
   scale,
   connectMode,
   handTool,
+  freeArrowMode,
   selectedExists,
   canUndo,
   canRedo,
   onAddShape,
   onToggleConnect,
   onToggleHandTool,
+  onToggleFreeArrow,
   onDeleteSelected,
   onUndo,
   onRedo,
@@ -106,6 +111,12 @@ export function CanvasToolbar({
           icon={Link2}
           label={connectMode ? 'Aktiv' : 'Verbinden'}
           active={connectMode}
+        />
+        <ToolbarButton
+          onClick={onToggleFreeArrow}
+          icon={ArrowUpRight}
+          label={freeArrowMode ? 'Aktiv' : 'Freier Pfeil'}
+          active={freeArrowMode}
         />
         <ToolbarButton
           onClick={onDeleteSelected}

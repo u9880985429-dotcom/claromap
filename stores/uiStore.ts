@@ -33,6 +33,13 @@ interface UIState {
   // dickere Outlines. Für Senior:innen oder Touch-Bedienung.
   // Persistiert via localStorage als 'claromap.comfort'.
   comfortMode: boolean
+  // Free-Arrow-Modus: zwei Klicks auf den Canvas erzeugen einen freien Pfeil
+  // zwischen zwei beliebigen Positionen (nicht an Knoten gebunden). Beim
+  // Aktivieren wird connectMode automatisch deaktiviert (Konflikt vermeiden).
+  freeArrowMode: boolean
+  // Erster Klick-Punkt für die Free-Arrow-Erzeugung. Map-Koordinaten (vor
+  // Pan/Zoom-Transformation, also raw x/y im logical coordinate system).
+  freeArrowStart: { x: number; y: number } | null
 
   setView: (v: ViewName) => void
   setDetailLevel: (l: DetailLevel) => void
@@ -52,6 +59,9 @@ interface UIState {
   setHandTool: (v: boolean) => void
   toggleComfortMode: () => void
   setComfortMode: (v: boolean) => void
+  toggleFreeArrowMode: () => void
+  setFreeArrowMode: (v: boolean) => void
+  setFreeArrowStart: (p: { x: number; y: number } | null) => void
 }
 
 const MIN_SCALE = 0.2
@@ -73,6 +83,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   mapsSidebarOpen: true,
   handTool: false,
   comfortMode: false,
+  freeArrowMode: false,
+  freeArrowStart: null,
 
   setView: (v) => set({ view: v }),
   setDetailLevel: (l) => set({ detailLevel: l }),
@@ -134,4 +146,18 @@ export const useUIStore = create<UIState>((set, get) => ({
       }
       return { comfortMode: v }
     }),
+  toggleFreeArrowMode: () =>
+    set((s) => ({
+      freeArrowMode: !s.freeArrowMode,
+      freeArrowStart: null,
+      // Mutually exclusive mit connectMode + handTool
+      connectMode: !s.freeArrowMode ? false : s.connectMode,
+      handTool: !s.freeArrowMode ? false : s.handTool,
+    })),
+  setFreeArrowMode: (v) =>
+    set(() => ({
+      freeArrowMode: v,
+      freeArrowStart: null,
+    })),
+  setFreeArrowStart: (p) => set({ freeArrowStart: p }),
 }))

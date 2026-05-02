@@ -103,35 +103,47 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string
-          from_node_id: string
+          from_node_id: string | null
+          from_x: number | null
+          from_y: number | null
           id: string
           line_style: string
           map_id: string
           number: number | null
           step_label: string | null
-          to_node_id: string
+          to_node_id: string | null
+          to_x: number | null
+          to_y: number | null
         }
         Insert: {
           color?: string | null
           created_at?: string
-          from_node_id: string
+          from_node_id?: string | null
+          from_x?: number | null
+          from_y?: number | null
           id?: string
           line_style?: string
           map_id: string
           number?: number | null
           step_label?: string | null
-          to_node_id: string
+          to_node_id?: string | null
+          to_x?: number | null
+          to_y?: number | null
         }
         Update: {
           color?: string | null
           created_at?: string
-          from_node_id?: string
+          from_node_id?: string | null
+          from_x?: number | null
+          from_y?: number | null
           id?: string
           line_style?: string
           map_id?: string
           number?: number | null
           step_label?: string | null
-          to_node_id?: string
+          to_node_id?: string | null
+          to_x?: number | null
+          to_y?: number | null
         }
         Relationships: [
           {

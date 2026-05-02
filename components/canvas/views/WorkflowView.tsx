@@ -88,6 +88,8 @@ export function WorkflowView({ mapId }: Props) {
   const theme = useUIStore((s) => s.theme)
   const focusMode = useUIStore((s) => s.focusMode)
   const handTool = useUIStore((s) => s.handTool)
+  const freeArrowMode = useUIStore((s) => s.freeArrowMode)
+  const freeArrowStart = useUIStore((s) => s.freeArrowStart)
 
   // Im Focus-Mode: nur Knoten die mit dem selektierten direkt verbunden sind
   // (oder der selektierte selbst) bleiben voll sichtbar.
@@ -95,8 +97,12 @@ export function WorkflowView({ mapId }: Props) {
     if (!focusMode || !selectedNodeId) return null
     const visible = new Set<string>([selectedNodeId])
     for (const c of connections) {
-      if (c.from_node_id === selectedNodeId) visible.add(c.to_node_id)
-      if (c.to_node_id === selectedNodeId) visible.add(c.from_node_id)
+      if (c.from_node_id === selectedNodeId && c.to_node_id) {
+        visible.add(c.to_node_id)
+      }
+      if (c.to_node_id === selectedNodeId && c.from_node_id) {
+        visible.add(c.from_node_id)
+      }
     }
     return visible
   }, [focusMode, selectedNodeId, connections])
@@ -310,6 +316,74 @@ export function WorkflowView({ mapId }: Props) {
 
   const onBackgroundMouseDown = (e: ReactMouseEvent) => {
     if (e.button !== 0) return
+
+    const ui = useUIStore.getState()
+
+    // Free-Arrow-Modus: 1. Klick = Start-Punkt, 2. Klick = End-Punkt + erstellen
+    if (ui.freeArrowMode) {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      // Bildschirm-Koord → Map-Koord (vor Pan/Zoom)
+      const mapX = Math.round((e.clientX - rect.left - ui.panX) / ui.scale)
+      const mapY = Math.round((e.clientY - rect.top - ui.panY) / ui.scale)
+
+      if (!ui.freeArrowStart) {
+        ui.setFreeArrowStart({ x: mapX, y: mapY })
+        return
+      }
+
+      // Zweiter Klick → Verbindung erzeugen
+      const start = ui.freeArrowStart
+      ui.setFreeArrowStart(null)
+      ui.toggleFreeArrowMode() // wieder aus
+
+      const tempId = `temp-${Date.now()}`
+      const tempConn: ConnectionRow = {
+        id: tempId,
+        map_id: mapId,
+        from_node_id: null,
+        to_node_id: null,
+        from_x: start.x,
+        from_y: start.y,
+        to_x: mapX,
+        to_y: mapY,
+        step_label: null,
+        number: null,
+        color: null,
+        line_style: 'solid',
+        created_at: new Date().toISOString(),
+      }
+      useMapStore.getState().upsertConnection(tempConn)
+
+      savedAction(() =>
+        createConnectionAction({
+          map_id: mapId,
+          from_node_id: null,
+          to_node_id: null,
+          from_x: start.x,
+          from_y: start.y,
+          to_x: mapX,
+          to_y: mapY,
+        }),
+      )
+        .then((real) => {
+          useMapStore.setState((s) => ({
+            connections: s.connections.map((c) =>
+              c.id === tempId ? real : c,
+            ),
+          }))
+          useMapStore
+            .getState()
+            .pushHistory({ type: 'create-connection', conn: real })
+        })
+        .catch((err) => {
+          console.error('Freier Pfeil konnte nicht gespeichert werden', err)
+          useMapStore.getState().removeConnection(tempId)
+        })
+
+      return
+    }
+
     // Shift+Background-Klick: Selektion BEIBEHALTEN (Pan ohne Auswahl-Verlust),
     // damit Multi-Select-User scrollen können ohne ihre Auswahl zu verlieren.
     if (!e.shiftKey) {
@@ -373,6 +447,10 @@ export function WorkflowView({ mapId }: Props) {
         map_id: mapId,
         from_node_id: fromId,
         to_node_id: toId,
+        from_x: null,
+        from_y: null,
+        to_x: null,
+        to_y: null,
         step_label: null,
         number: null,
         color: null,
@@ -955,12 +1033,14 @@ export function WorkflowView({ mapId }: Props) {
         scale={scale}
         connectMode={connectMode}
         handTool={handTool}
+        freeArrowMode={freeArrowMode}
         selectedExists={selectedNodeIds.size > 0}
         canUndo={canUndoNow}
         canRedo={canRedoNow}
         onAddShape={handleAddShape}
         onToggleConnect={() => useUIStore.getState().toggleConnectMode()}
         onToggleHandTool={() => useUIStore.getState().toggleHandTool()}
+        onToggleFreeArrow={() => useUIStore.getState().toggleFreeArrowMode()}
         onDeleteSelected={handleDeleteSelected}
         onUndo={() => undo()}
         onRedo={() => redo()}
@@ -979,6 +1059,14 @@ export function WorkflowView({ mapId }: Props) {
           {connectFromNodeId
             ? 'Klick auf den Ziel-Knoten'
             : 'Klick auf den Start-Knoten'}
+        </div>
+      )}
+
+      {freeArrowMode && (
+        <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full bg-blue px-4 py-1.5 text-sm font-medium text-white shadow-mid">
+          {freeArrowStart
+            ? 'Klick auf den End-Punkt für den Pfeil'
+            : 'Klick auf den Start-Punkt für den freien Pfeil'}
         </div>
       )}
 
@@ -1005,14 +1093,22 @@ export function WorkflowView({ mapId }: Props) {
           style={{ left: 0, top: 0, width: 1, height: 1, overflow: 'visible' }}
         >
           {connections.map((c) => {
-            const from = nodes.find((n) => n.id === c.from_node_id)
-            const to = nodes.find((n) => n.id === c.to_node_id)
-            if (!from || !to) return null
+            const from = c.from_node_id
+              ? nodes.find((n) => n.id === c.from_node_id)
+              : null
+            const to = c.to_node_id
+              ? nodes.find((n) => n.id === c.to_node_id)
+              : null
+            // Free connection: mindestens ein Endpunkt ist eine
+            // freie Koordinate. Wenn beide Endpunkte node-bound aber der
+            // Knoten existiert nicht (z.B. wurde gelöscht): skip.
+            const isNodeBoundFully = c.from_node_id && c.to_node_id
+            if (isNodeBoundFully && (!from || !to)) return null
             const dimmed =
               focusVisibleIds !== null &&
               !(
-                focusVisibleIds.has(c.from_node_id) &&
-                focusVisibleIds.has(c.to_node_id)
+                (c.from_node_id ? focusVisibleIds.has(c.from_node_id) : false) ||
+                (c.to_node_id ? focusVisibleIds.has(c.to_node_id) : false)
               )
             return (
               <g
@@ -1027,8 +1123,8 @@ export function WorkflowView({ mapId }: Props) {
               >
                 <ConnectionLine
                   connection={c}
-                  fromNode={from}
-                  toNode={to}
+                  fromNode={from ?? null}
+                  toNode={to ?? null}
                   handDrawn={theme === 'hand'}
                 />
               </g>
