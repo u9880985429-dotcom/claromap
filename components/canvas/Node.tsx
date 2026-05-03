@@ -14,6 +14,7 @@ import { updateNodeAction } from '@/app/(dashboard)/maps/[id]/actions'
 import { savedAction } from '@/lib/utils/savedAction'
 
 export type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br'
+export type ConnectAnchor = 'top' | 'right' | 'bottom' | 'left'
 
 interface Props {
   node: NodeRow
@@ -30,6 +31,12 @@ interface Props {
     node: NodeRow,
     corner: ResizeCorner,
   ) => void
+  // Drag-to-Connect: aus einem Anchor heraus auf einen anderen Knoten ziehen
+  onMouseDownAnchor?: (
+    e: ReactMouseEvent,
+    node: NodeRow,
+    anchor: ConnectAnchor,
+  ) => void
 }
 
 function NodeImpl({
@@ -41,6 +48,7 @@ function NodeImpl({
   dimmed = false,
   onMouseDownNode,
   onMouseDownHandle,
+  onMouseDownAnchor,
 }: Props) {
   const detailLevel = useUIStore((s) => s.detailLevel)
 
@@ -75,7 +83,7 @@ function NodeImpl({
   return (
     <div
       className={cn(
-        'claromap-node absolute select-none transition-shadow',
+        'claromap-node group absolute select-none transition-shadow',
         connectMode
           ? 'cursor-crosshair'
           : editing
@@ -382,7 +390,58 @@ function NodeImpl({
           🔒
         </div>
       )}
+
+      {/* Drag-to-Connect: 4 Anchors am Rand. Erscheinen beim Hover über
+          dem Knoten, sind aber sonst dezent (sonst zu viel UI-Rauschen).
+          Nicht bei Sticky-Notes, nicht bei locked-Knoten, nicht im
+          Connect-Mode (da läuft schon der alte Modus). */}
+      {!isNote && !node.locked && !connectMode && !editing && onMouseDownAnchor && (
+        <>
+          <ConnectAnchorDot
+            position="top"
+            onMouseDown={(e) => onMouseDownAnchor(e, node, 'top')}
+          />
+          <ConnectAnchorDot
+            position="right"
+            onMouseDown={(e) => onMouseDownAnchor(e, node, 'right')}
+          />
+          <ConnectAnchorDot
+            position="bottom"
+            onMouseDown={(e) => onMouseDownAnchor(e, node, 'bottom')}
+          />
+          <ConnectAnchorDot
+            position="left"
+            onMouseDown={(e) => onMouseDownAnchor(e, node, 'left')}
+          />
+        </>
+      )}
     </div>
+  )
+}
+
+function ConnectAnchorDot({
+  position,
+  onMouseDown,
+}: {
+  position: ConnectAnchor
+  onMouseDown: (e: ReactMouseEvent) => void
+}) {
+  const cls = {
+    top: '-top-2 left-1/2 -translate-x-1/2',
+    bottom: '-bottom-2 left-1/2 -translate-x-1/2',
+    left: '-left-2 top-1/2 -translate-y-1/2',
+    right: '-right-2 top-1/2 -translate-y-1/2',
+  }[position]
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      title="Ziehen, um Knoten zu verbinden"
+      className={cn(
+        'absolute z-10 h-3 w-3 cursor-crosshair rounded-full border-2 border-bg2 bg-accent2 opacity-0 shadow-soft transition-opacity hover:scale-125 group-hover:opacity-100',
+        cls,
+      )}
+    />
   )
 }
 

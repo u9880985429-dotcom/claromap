@@ -14,7 +14,7 @@ import {
   type NodeRow,
 } from '@/stores/mapStore'
 import { useUIStore } from '@/stores/uiStore'
-import { Node, type ResizeCorner } from '../Node'
+import { Node, type ConnectAnchor, type ResizeCorner } from '../Node'
 import { ConnectionLine } from '../ConnectionLine'
 import { CanvasToolbar } from '../CanvasToolbar'
 import { AlignToolbar, type AlignDirection } from '../AlignToolbar'
@@ -27,6 +27,7 @@ import {
   updateNodeAction,
 } from '@/app/(dashboard)/maps/[id]/actions'
 import { savedAction } from '@/lib/utils/savedAction'
+import { snapDragPosition, type AlignmentGuide } from '@/lib/utils/snap'
 import { undo, redo } from '@/lib/utils/undoRedo'
 import { cn } from '@/lib/utils/cn'
 
@@ -72,6 +73,18 @@ type DragState =
       currentX: number
       currentY: number
     }
+  | {
+      // Drag-to-Connect: aus einem Anchor heraus auf einen anderen Knoten
+      // ziehen. Während des Drags wird eine Linie vom Anchor zur Cursor-
+      // Position gezeichnet. Beim Loslassen über einem anderen Knoten:
+      // Connection erzeugen.
+      kind: 'connect-drag'
+      fromNodeId: string
+      anchor: ConnectAnchor
+      // Live-Cursor-Position (in Map-Koordinaten) für Preview-Linie
+      currentX: number
+      currentY: number
+    }
 
 const MIN_NODE_SIZE = 60
 const MAX_NODE_SIZE = 300
@@ -85,6 +98,17 @@ export function WorkflowView({ mapId }: Props) {
   const dragRef = useRef<DragState | null>(null)
   const dragAbortRef = useRef<AbortController | null>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  // Live-State für die Connect-Drag-Preview-Linie. Wir spiegeln die
+  // mutable dragRef-Daten in State, damit React die Preview-Linie
+  // korrekt re-rendert (refs allein reichen nicht).
+  const [connectDragInfo, setConnectDragInfo] = useState<{
+    fromNodeId: string
+    currentX: number
+    currentY: number
+  } | null>(null)
+  // Smart-Alignment-Guides: blaue Linien während Drag wenn der Knoten
+  // an einer Kante / Mitte eines anderen Knotens aligned ist.
+  const [alignGuides, setAlignGuides] = useState<AlignmentGuide[]>([])
 
   // Container-Größe für MiniMap-Rendering tracken (nur bei Layout-Änderung)
   useEffect(() => {
@@ -144,6 +168,22 @@ export function WorkflowView({ mapId }: Props) {
 
     const currentScale = useUIStore.getState().scale
 
+    // connect-drag: Live-Cursor-Position tracken. Wir mirrorn ins State,
+    // damit React die Preview-Linie re-rendert.
+    if (state.kind === 'connect-drag') {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const ui = useUIStore.getState()
+      state.currentX = Math.round((e.clientX - rect.left - ui.panX) / ui.scale)
+      state.currentY = Math.round((e.clientY - rect.top - ui.panY) / ui.scale)
+      setConnectDragInfo({
+        fromNodeId: state.fromNodeId,
+        currentX: state.currentX,
+        currentY: state.currentY,
+      })
+      return
+    }
+
     // drag-endpoint: nutzt die aktuelle Mausposition direkt (absolute).
     // Dadurch ist die Bewegung pixel-genau am Cursor — keine startMouseX/Y-Diff.
     if (state.kind === 'drag-endpoint') {
@@ -198,6 +238,43 @@ export function WorkflowView({ mapId }: Props) {
         effDx = targetX
         effDy = targetY
       }
+
+      // Smart-Alignment-Snap: nur bei Single-Drag (sonst rutschen Bulk-
+      // Selected-Knoten unkontrolliert). Snap berücksichtigt nur Knoten
+      // die NICHT im Bulk-Drag sind (sonst snappt man auf sich selbst).
+      if (state.others.length === 0) {
+        const allNodes = useMapStore.getState().nodes
+        const draggedNode = allNodes.find((n) => n.id === state.nodeId)
+        if (draggedNode) {
+          // dragBox = START-Position des gezogenen Knotens. plannedDx/Dy =
+          // vom User gewolltes Delta (effDx/effDy). snapDragPosition
+          // rechnet zurück: korrigierte dx/dy + Hilfslinien.
+          const dragBox = {
+            id: draggedNode.id,
+            position_x: state.startX,
+            position_y: state.startY,
+            width: draggedNode.width,
+            height: draggedNode.height,
+          }
+          const others = allNodes
+            .filter((n) => n.id !== state.nodeId)
+            .map((n) => ({
+              id: n.id,
+              position_x: n.position_x,
+              position_y: n.position_y,
+              width: n.width,
+              height: n.height,
+            }))
+          const result = snapDragPosition(dragBox, effDx, effDy, others)
+          effDx = result.dx
+          effDy = result.dy
+          setAlignGuides(result.guides)
+        }
+      } else {
+        // Bulk-Drag: keine Guides — leer setzen falls vorher gesetzt
+        setAlignGuides((prev) => (prev.length === 0 ? prev : []))
+      }
+
       useMapStore.getState().patchNodeLocal(state.nodeId, {
         position_x: state.startX + effDx,
         position_y: state.startY + effDy,
@@ -260,6 +337,9 @@ export function WorkflowView({ mapId }: Props) {
     dragAbortRef.current?.abort()
     dragAbortRef.current = null
     dragRef.current = null
+    // Guides + Connect-Preview löschen sobald Drag vorbei ist
+    setAlignGuides((prev) => (prev.length === 0 ? prev : []))
+    setConnectDragInfo(null)
 
     if (state.kind === 'drag-node') {
       const allNodes = useMapStore.getState().nodes
@@ -362,6 +442,72 @@ export function WorkflowView({ mapId }: Props) {
           console.error('Größe konnte nicht gespeichert werden', err),
         )
       }
+    } else if (state.kind === 'connect-drag') {
+      // Snap-Test: liegt currentX/Y über einem Knoten? Wenn ja und es
+      // NICHT der Start-Knoten ist → Connection erzeugen.
+      const allNodes = useMapStore.getState().nodes
+      const target = allNodes.find(
+        (n) =>
+          n.id !== state.fromNodeId &&
+          state.currentX >= n.position_x &&
+          state.currentX <= n.position_x + n.width &&
+          state.currentY >= n.position_y &&
+          state.currentY <= n.position_y + n.height,
+      )
+      setConnectDragInfo(null) // Preview-Linie weg
+
+      if (!target) return // Drop ins Leere → einfach abbrechen, kein Fehler
+
+      // Doppelte Kanten zwischen denselben Knoten vermeiden
+      const existing = useMapStore
+        .getState()
+        .connections.find(
+          (c) =>
+            c.from_node_id === state.fromNodeId && c.to_node_id === target.id,
+        )
+      if (existing) return
+
+      const tempId = `temp-${Date.now()}`
+      const tempConn: ConnectionRow = {
+        id: tempId,
+        map_id: mapId,
+        from_node_id: state.fromNodeId,
+        to_node_id: target.id,
+        from_x: null,
+        from_y: null,
+        to_x: null,
+        to_y: null,
+        step_label: null,
+        number: null,
+        color: null,
+        line_style: 'solid',
+        stroke_width: 'medium',
+        animation: 'none',
+        created_at: new Date().toISOString(),
+      }
+      useMapStore.getState().upsertConnection(tempConn)
+
+      savedAction(() =>
+        createConnectionAction({
+          map_id: mapId,
+          from_node_id: state.fromNodeId,
+          to_node_id: target.id,
+        }),
+      )
+        .then((real) => {
+          useMapStore.setState((s) => ({
+            connections: s.connections.map((c) =>
+              c.id === tempId ? real : c,
+            ),
+          }))
+          useMapStore
+            .getState()
+            .pushHistory({ type: 'create-connection', conn: real })
+        })
+        .catch((err) => {
+          console.error('Verbindung konnte nicht gespeichert werden', err)
+          useMapStore.getState().removeConnection(tempId)
+        })
     } else if (state.kind === 'drag-endpoint') {
       // Snap-Test: liegt currentX/Y über einem Knoten?
       const allNodes = useMapStore.getState().nodes
@@ -409,7 +555,7 @@ export function WorkflowView({ mapId }: Props) {
         console.error('Pfeil-Endpunkt konnte nicht gespeichert werden', err),
       )
     }
-  }, [])
+  }, [mapId])
 
   const startDragListeners = useCallback(() => {
     dragAbortRef.current?.abort()
@@ -688,6 +834,36 @@ export function WorkflowView({ mapId }: Props) {
         currentX: mapX,
         currentY: mapY,
       }
+      startDragListeners()
+    },
+    [startDragListeners],
+  )
+
+  // Drag-to-Connect: aus einem Anchor heraus auf einen anderen Knoten ziehen.
+  // Während des Drags wird eine Linie vom Anchor zur Cursor-Position gezeichnet
+  // (siehe SVG-Overlay weiter unten). Beim Drop über einem Knoten →
+  // Connection. Beim Drop ins Leere → einfach abbrechen.
+  const onAnchorMouseDown = useCallback(
+    (e: ReactMouseEvent, fromNode: NodeRow, anchor: ConnectAnchor) => {
+      if (e.button !== 0) return
+      e.stopPropagation()
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const ui = useUIStore.getState()
+      const mapX = Math.round((e.clientX - rect.left - ui.panX) / ui.scale)
+      const mapY = Math.round((e.clientY - rect.top - ui.panY) / ui.scale)
+      dragRef.current = {
+        kind: 'connect-drag',
+        fromNodeId: fromNode.id,
+        anchor,
+        currentX: mapX,
+        currentY: mapY,
+      }
+      setConnectDragInfo({
+        fromNodeId: fromNode.id,
+        currentX: mapX,
+        currentY: mapY,
+      })
       startDragListeners()
     },
     [startDragListeners],
@@ -1301,6 +1477,28 @@ export function WorkflowView({ mapId }: Props) {
               </g>
             )
           })}
+
+          {/* Smart-Alignment-Guides: blaue gestrichelte Linien während
+              ein Knoten gezogen wird, sobald eine Kante / Mitte mit einem
+              anderen Knoten exakt aligned ist. */}
+          {alignGuides.map((g, i) => (
+            <line
+              key={`guide-${i}-${g.axis}-${g.pos}`}
+              x1={g.axis === 'vertical' ? g.pos : g.start - 8}
+              y1={g.axis === 'vertical' ? g.start - 8 : g.pos}
+              x2={g.axis === 'vertical' ? g.pos : g.end + 8}
+              y2={g.axis === 'vertical' ? g.end + 8 : g.pos}
+              stroke="#3B82F6"
+              strokeWidth={1.5}
+              strokeDasharray="4,3"
+              opacity={0.85}
+              pointerEvents="none"
+            />
+          ))}
+
+          {/* Drag-to-Connect: Live-Preview-Linie vom Start-Knoten zur
+              Cursor-Position. Erscheint nur während ein connect-drag läuft. */}
+          <ConnectDragPreview info={connectDragInfo} nodes={nodes} />
         </svg>
 
         {/* Locked-Knoten zuerst rendern → liegen optisch UNTER den normalen
@@ -1325,6 +1523,7 @@ export function WorkflowView({ mapId }: Props) {
                 dimmed={dimmed}
                 onMouseDownNode={onNodeMouseDown}
                 onMouseDownHandle={onResizeHandleMouseDown}
+                onMouseDownAnchor={onAnchorMouseDown}
               />
             )
           })}
@@ -1399,5 +1598,59 @@ function WelcomeAction({
     >
       + {label}
     </button>
+  )
+}
+
+/**
+ * Live-Preview während Drag-to-Connect: gestrichelte Linie vom Start-
+ * Knoten zur Cursor-Position. Wenn der Cursor über einem anderen Knoten
+ * ist, wird der hervorgehoben (Snap-Hint).
+ */
+function ConnectDragPreview({
+  info,
+  nodes,
+}: {
+  info: { fromNodeId: string; currentX: number; currentY: number } | null
+  nodes: NodeRow[]
+}) {
+  if (!info) return null
+  const fromNode = nodes.find((n) => n.id === info.fromNodeId)
+  if (!fromNode) return null
+  const fromX = fromNode.position_x + fromNode.width / 2
+  const fromY = fromNode.position_y + fromNode.height / 2
+  const target = nodes.find(
+    (n) =>
+      n.id !== info.fromNodeId &&
+      info.currentX >= n.position_x &&
+      info.currentX <= n.position_x + n.width &&
+      info.currentY >= n.position_y &&
+      info.currentY <= n.position_y + n.height,
+  )
+  const stroke = target ? 'var(--accent)' : 'rgba(245,166,35,0.7)'
+  return (
+    <g pointerEvents="none">
+      <line
+        x1={fromX}
+        y1={fromY}
+        x2={info.currentX}
+        y2={info.currentY}
+        stroke={stroke}
+        strokeWidth={2.5}
+        strokeDasharray="6,4"
+        strokeLinecap="round"
+      />
+      {target && (
+        <rect
+          x={target.position_x}
+          y={target.position_y}
+          width={target.width}
+          height={target.height}
+          fill="rgba(245,166,35,0.08)"
+          stroke="var(--accent)"
+          strokeWidth={2}
+          rx={6}
+        />
+      )}
+    </g>
   )
 }
