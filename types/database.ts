@@ -67,6 +67,39 @@ export type Database = {
           },
         ]
       }
+      api_keys: {
+        Row: {
+          id: string
+          user_id: string
+          key_hash: string
+          key_prefix: string
+          name: string
+          created_at: string
+          last_used_at: string | null
+          revoked_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          key_hash: string
+          key_prefix: string
+          name: string
+          created_at?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          key_hash?: string
+          key_prefix?: string
+          name?: string
+          created_at?: string
+          last_used_at?: string | null
+          revoked_at?: string | null
+        }
+        Relationships: []
+      }
       annotations: {
         Row: {
           created_at: string
