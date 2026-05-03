@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { useMemo } from 'react'
@@ -17,6 +18,7 @@ import { Node, type ResizeCorner } from '../Node'
 import { ConnectionLine } from '../ConnectionLine'
 import { CanvasToolbar } from '../CanvasToolbar'
 import { AlignToolbar, type AlignDirection } from '../AlignToolbar'
+import { MiniMap } from '../MiniMap'
 import {
   createConnectionAction,
   createNodeAction,
@@ -82,6 +84,21 @@ export function WorkflowView({ mapId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<DragState | null>(null)
   const dragAbortRef = useRef<AbortController | null>(null)
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+
+  // Container-Größe für MiniMap-Rendering tracken (nur bei Layout-Änderung)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      const r = entry.contentRect
+      setContainerSize({ width: r.width, height: r.height })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const nodes = useMapStore((s) => s.nodes)
   const connections = useMapStore((s) => s.connections)
@@ -676,7 +693,8 @@ export function WorkflowView({ mapId }: Props) {
     [startDragListeners],
   )
 
-  // Wheel zoom (native listener for passive:false)
+  // Wheel: Zoom (Cmd/Ctrl) | Pan-X (deltaX oder Shift+deltaY) | Pan-Y (deltaY)
+  // Unterstützt MX Master Side-Scroll-Wheel + Trackpad-Zwei-Finger-Wisch.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -685,8 +703,20 @@ export function WorkflowView({ mapId }: Props) {
       const rect = el.getBoundingClientRect()
       const cx = e.clientX - rect.left
       const cy = e.clientY - rect.top
-      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
-      useUIStore.getState().zoomBy(factor, cx, cy)
+      const ui = useUIStore.getState()
+
+      // Zoom: nur wenn Cmd/Ctrl gedrückt ist (oder ctrlKey via Pinch-Trackpad)
+      if (e.ctrlKey || e.metaKey) {
+        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
+        ui.zoomBy(factor, cx, cy)
+        return
+      }
+
+      // Pan: deltaX horizontal, deltaY vertikal. Shift+Wheel macht aus
+      // deltaY ein deltaX (Browser-Konvention für Maus-User ohne Tilt-Wheel).
+      const panDx = e.shiftKey ? -e.deltaY : -e.deltaX
+      const panDy = e.shiftKey ? 0 : -e.deltaY
+      ui.setPan(ui.panX + panDx, ui.panY + panDy)
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
@@ -1342,6 +1372,13 @@ export function WorkflowView({ mapId }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {containerSize.width > 0 && (
+        <MiniMap
+          containerWidth={containerSize.width}
+          containerHeight={containerSize.height}
+        />
       )}
     </div>
   )

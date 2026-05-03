@@ -41,6 +41,11 @@ export type TemplateNode = {
   // genutzt — die User kann sie selektieren, lesen, sogar via DetailPanel
   // entsperren, aber sie verrutschen nicht beim normalen Arbeiten.
   locked?: boolean
+  // Wo der Titel + Emoji rendert.
+  // 'center' (Default), 'top-banner' (kleines Header-Band oben innerhalb,
+  // Innenraum bleibt frei für reingelegte Aufgaben), 'above' (außerhalb
+  // schwebt drüber).
+  label_position?: 'center' | 'top-banner' | 'above'
 }
 
 export type TemplateConnection = {
@@ -635,73 +640,69 @@ const eisenhower: Template = {
   category: 'entscheidungen',
   name: 'Eisenhower-Matrix',
   description:
-    '4 fixierte Quadranten als Hintergrund — Aufgaben einfach reinziehen. Sofort tun · Planen · Delegieren · Weglassen.',
+    '4 fixierte Quadranten mit Kopfzeile — der ganze Innenraum bleibt frei für deine Aufgaben.',
   icon: '🟦',
   preferredView: 'graph',
   preferredBackgroundPattern: 'grid',
   nodes: [
-    // ═══ 4 große Quadranten, FIXIERT, dienen als Hintergrund-Layout ═══
+    // 4 Quadranten als Hintergrund-Layout — locked, mit Kopfzeile oben (top-banner)
+    // damit der ganze Innenraum frei ist für reingezogene Aufgaben.
     {
       step_number: 1,
       emoji: '🔥',
-      name: 'Wichtig & Dringend',
-      short_desc: 'Sofort selbst erledigen',
+      name: 'Wichtig & Dringend — sofort selbst erledigen',
       shape: '8%',
       width: 520,
       height: 380,
       position_x: 0,
       position_y: 0,
-      color: '#FECACA', // pastel red
+      color: '#FECACA',
       text_color: '#7F1D1D',
       locked: true,
+      label_position: 'top-banner',
     },
     {
       step_number: 2,
       emoji: '📅',
-      name: 'Wichtig & nicht dringend',
-      short_desc: 'Bewusst einplanen',
+      name: 'Wichtig & nicht dringend — bewusst einplanen',
       shape: '8%',
       width: 520,
       height: 380,
       position_x: 540,
       position_y: 0,
-      color: '#BBF7D0', // pastel green
+      color: '#BBF7D0',
       text_color: '#14532D',
       locked: true,
+      label_position: 'top-banner',
     },
     {
       step_number: 3,
       emoji: '👥',
-      name: 'Nicht wichtig & dringend',
-      short_desc: 'Delegieren',
+      name: 'Nicht wichtig & dringend — delegieren',
       shape: '8%',
       width: 520,
       height: 380,
       position_x: 0,
       position_y: 400,
-      color: '#FED7AA', // pastel orange
+      color: '#FED7AA',
       text_color: '#7C2D12',
       locked: true,
+      label_position: 'top-banner',
     },
     {
       step_number: 4,
       emoji: '🗑️',
-      name: 'Nicht wichtig & nicht dringend',
-      short_desc: 'Weglassen oder später',
+      name: 'Nicht wichtig & nicht dringend — weglassen',
       shape: '8%',
       width: 520,
       height: 380,
       position_x: 540,
       position_y: 400,
-      color: '#E5E7EB', // pastel gray
+      color: '#E5E7EB',
       text_color: '#374151',
       locked: true,
+      label_position: 'top-banner',
     },
-    // ═══ 4 Beispiel-Aufgaben in den Quadranten ═══
-    { step_number: 5, emoji: '⚡', name: 'Krise lösen', shape: '20%', width: 160, height: 80, position_x: 60, position_y: 220, color: C.red },
-    { step_number: 6, emoji: '🎯', name: 'Quartals-Ziele setzen', shape: '20%', width: 200, height: 80, position_x: 600, position_y: 220, color: C.green },
-    { step_number: 7, emoji: '📞', name: 'Anruf zurückgeben', shape: '20%', width: 180, height: 80, position_x: 60, position_y: 620, color: C.amber },
-    { step_number: 8, emoji: '📺', name: 'Social-Media-Scrollen', shape: '20%', width: 200, height: 80, position_x: 600, position_y: 620, color: C.gray },
   ],
   connections: [],
 }

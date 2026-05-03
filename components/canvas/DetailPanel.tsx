@@ -1,7 +1,16 @@
 'use client'
 
 import { useMemo } from 'react'
-import { X, Trash2, Lock, Unlock } from 'lucide-react'
+import {
+  X,
+  Trash2,
+  Lock,
+  Unlock,
+  Check,
+  Loader2,
+  AlertCircle,
+  Save,
+} from 'lucide-react'
 import { useMapStore, type NodeRow } from '@/stores/mapStore'
 import {
   deleteNodeAction,
@@ -260,6 +269,13 @@ function NodeEditor({ node }: { node: NodeRow }) {
           />
         </Section>
 
+        <Section label="Wo soll der Titel stehen?">
+          <LabelPositionPicker
+            value={node.label_position}
+            onChange={(p) => patchAndSave({ label_position: p })}
+          />
+        </Section>
+
         <Section label="Position fixieren">
           <button
             type="button"
@@ -296,7 +312,8 @@ function NodeEditor({ node }: { node: NodeRow }) {
         </Section>
       </div>
 
-      <footer className="border-t border-line px-4 py-3">
+      <footer className="space-y-2 border-t border-line px-4 py-3">
+        <SaveStatusRow />
         <button
           type="button"
           onClick={onDelete}
@@ -352,6 +369,141 @@ function ParentSelector({
         </option>
       ))}
     </select>
+  )
+}
+
+/**
+ * Save-Status mit explizitem "Speichern"-Button im DetailPanel-Footer.
+ *
+ * Auch wenn alle Felder Auto-Save via onBlur haben, gibt der Button zwei
+ * konkrete Vorteile:
+ *  1) Wenn der Cursor noch in einem Feld ist (kein Blur), zwingt der Klick
+ *     den aktuellen Input zum Blur → ungespeicherter Text wird committet.
+ *  2) Klare visuelle Bestätigung "Es ist alles gespeichert" — gerade für
+ *     Senior:innen / unsichere Nutzer ein wichtiges Signal.
+ */
+function SaveStatusRow() {
+  const status = useMapStore((s) => s.saveStatus)
+  const inflightCount = useMapStore((s) => s.inflightCount)
+  const onForceSave = () => {
+    // Aktuellen Fokus blurren → onBlur-Handler feuert → patchAndSave
+    const el = document.activeElement
+    if (el && 'blur' in el && typeof (el as HTMLElement).blur === 'function') {
+      ;(el as HTMLElement).blur()
+    }
+  }
+
+  let label: string
+  let icon: React.ReactNode
+  let cls: string
+  if (inflightCount > 0 || status === 'saving') {
+    label = 'Speichere …'
+    icon = <Loader2 size={14} className="animate-spin" />
+    cls = 'border-amber/40 bg-amber/10 text-amber'
+  } else if (status === 'error') {
+    label = 'Speichern fehlgeschlagen — erneut versuchen'
+    icon = <AlertCircle size={14} />
+    cls = 'border-red/40 bg-red/10 text-red'
+  } else {
+    label = 'Alles automatisch gespeichert'
+    icon = <Check size={14} />
+    cls = 'border-green/40 bg-green/10 text-green'
+  }
+
+  return (
+    <div className="flex items-stretch gap-2">
+      <div
+        className={`flex flex-1 items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium ${cls}`}
+      >
+        {icon}
+        <span className="flex-1">{label}</span>
+      </div>
+      <button
+        type="button"
+        onClick={onForceSave}
+        title="Aktuelles Feld speichern (oder erzwingt das Speichern wenn der Cursor noch in einem Feld ist)"
+        className="flex items-center gap-1.5 rounded-md border border-line2 bg-bg2 px-3 py-2 text-xs font-medium text-text2 transition hover:bg-bg3"
+      >
+        <Save size={14} />
+        Speichern
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Picker für die Position des Knoten-Titels. Bestimmt, wo Emoji + Name
+ * angezeigt werden:
+ *  - 'center' (alt: 'inside') → mittig im Knoten (Default)
+ *  - 'top-banner'             → kleines fixiertes Header-Band oben innerhalb
+ *  - 'above' (alt: 'outside') → über dem Knoten, außerhalb (schwebt darüber)
+ *
+ * Praktisch für Container-Knoten wie Eisenhower-Quadranten: mit 'top-banner'
+ * bleibt der ganze Innenraum frei für reingelegte Aufgaben.
+ */
+function LabelPositionPicker({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (v: string) => void
+}) {
+  // Alte Werte sanft auf neue mappen
+  const norm = value === 'inside' ? 'center' : value === 'outside' ? 'above' : value
+  const options: { v: string; label: string; preview: React.ReactNode }[] = [
+    {
+      v: 'center',
+      label: 'Mitte',
+      preview: (
+        <div className="flex h-full w-full items-center justify-center bg-accent/20 text-[9px] text-accent">
+          Titel
+        </div>
+      ),
+    },
+    {
+      v: 'top-banner',
+      label: 'Kopfzeile',
+      preview: (
+        <div className="flex h-full w-full flex-col bg-bg3">
+          <div className="bg-accent/30 px-1 py-0.5 text-[8px] font-semibold text-accent">
+            Titel
+          </div>
+          <div className="flex-1" />
+        </div>
+      ),
+    },
+    {
+      v: 'above',
+      label: 'Über dem Feld',
+      preview: (
+        <div className="flex h-full w-full flex-col gap-0.5">
+          <div className="text-[8px] font-semibold text-accent">Titel</div>
+          <div className="flex-1 bg-bg3" />
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <div className="grid grid-cols-3 gap-1.5">
+      {options.map((opt) => (
+        <button
+          key={opt.v}
+          type="button"
+          onClick={() => onChange(opt.v)}
+          className={`flex flex-col items-stretch gap-1 rounded-md border p-1.5 text-xs transition ${
+            norm === opt.v
+              ? 'border-accent bg-accent/10 text-text'
+              : 'border-line2 bg-bg2 text-text3 hover:bg-bg3'
+          }`}
+        >
+          <div className="h-10 w-full overflow-hidden rounded border border-line2">
+            {opt.preview}
+          </div>
+          <span className="text-center text-[10px]">{opt.label}</span>
+        </button>
+      ))}
+    </div>
   )
 }
 

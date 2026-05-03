@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils/cn'
 import { useUIStore } from '@/stores/uiStore'
 import { useMapStore, type NodeRow } from '@/stores/mapStore'
 import { updateNodeAction } from '@/app/(dashboard)/maps/[id]/actions'
+import { savedAction } from '@/lib/utils/savedAction'
 
 export type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br'
 
@@ -59,6 +60,17 @@ function NodeImpl({
   const noteRotation = isNote
     ? `${(parseInt(node.id.slice(0, 8), 16) % 7) - 3}deg`
     : '0deg'
+
+  // Label-Position normalisieren: alte Werte 'inside' / 'outside' werden auf
+  // neue gemappt — gleiche Anzeige, neuer Name.
+  const labelPos =
+    node.label_position === 'inside'
+      ? 'center'
+      : node.label_position === 'outside'
+        ? 'above'
+        : node.label_position
+  const isTopBanner = labelPos === 'top-banner'
+  const isAbove = labelPos === 'above'
 
   return (
     <div
@@ -150,64 +162,154 @@ function NodeImpl({
           aria-hidden
         />
       )}
-      <div className="relative flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center">
+      {/* "above": Titel + Emoji schweben ÜBER dem Feld — Innenraum bleibt frei */}
+      {isAbove && (
         <div
-          className="leading-none"
-          style={{ fontSize: `${24 * fontScale}px` }}
+          className="absolute -top-7 left-0 right-0 flex items-center justify-center gap-1 px-1"
+          style={{ pointerEvents: 'none' }}
         >
-          {node.emoji ?? '📌'}
-        </div>
-        {editing ? (
-          <NameInput
-            initial={node.name}
-            fontSize={13 * fontScale}
-            color={node.text_color}
-            onCommit={async (value) => {
-              setEditing(false)
-              const trimmed = value.trim() || 'Knoten'
-              if (trimmed !== node.name) {
-                useMapStore
-                  .getState()
-                  .patchNodeLocal(node.id, { name: trimmed })
-                try {
-                  await updateNodeAction(node.id, { name: trimmed })
-                } catch (err) {
-                  console.error('Name speichern fehlgeschlagen', err)
-                }
-              }
+          <span style={{ fontSize: `${14 * fontScale}px` }}>
+            {node.emoji ?? '📌'}
+          </span>
+          <span
+            className="line-clamp-1 font-semibold leading-tight"
+            style={{
+              fontSize: `${12 * fontScale}px`,
+              color: 'var(--text)',
             }}
-            onCancel={() => setEditing(false)}
-          />
-        ) : (
-          <div
-            className="line-clamp-2 font-semibold leading-tight"
-            style={{ fontSize: `${13 * fontScale}px` }}
           >
             {node.name}
+          </span>
+        </div>
+      )}
+
+      {/* "top-banner": kleine Kopfzeile innerhalb des Knotens, Innenraum frei */}
+      {isTopBanner && (
+        <div
+          className="absolute left-0 right-0 top-0 flex items-center gap-1.5 px-2 py-1.5"
+          style={{
+            background: 'rgba(0,0,0,0.10)',
+            borderTopLeftRadius: typeof radius === 'string' ? radius : 0,
+            borderTopRightRadius: typeof radius === 'string' ? radius : 0,
+            color: node.text_color,
+          }}
+        >
+          <span style={{ fontSize: `${16 * fontScale}px` }}>
+            {node.emoji ?? '📌'}
+          </span>
+          {editing ? (
+            <NameInput
+              initial={node.name}
+              fontSize={12 * fontScale}
+              color={node.text_color}
+              onCommit={async (value) => {
+                setEditing(false)
+                const trimmed = value.trim() || 'Knoten'
+                if (trimmed !== node.name) {
+                  useMapStore.getState().pushHistory({
+                    type: 'patch-node',
+                    nodeId: node.id,
+                    before: { name: node.name },
+                    after: { name: trimmed },
+                  })
+                  useMapStore
+                    .getState()
+                    .patchNodeLocal(node.id, { name: trimmed })
+                  try {
+                    await savedAction(() =>
+                      updateNodeAction(node.id, { name: trimmed }),
+                    )
+                  } catch (err) {
+                    console.error('Name speichern fehlgeschlagen', err)
+                  }
+                }
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          ) : (
+            <span
+              className="line-clamp-1 flex-1 truncate text-left font-semibold leading-tight"
+              style={{ fontSize: `${12 * fontScale}px` }}
+            >
+              {node.name}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* "center" (Default): klassisch in der Mitte */}
+      {!isAbove && !isTopBanner && (
+        <div className="relative flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center">
+          <div
+            className="leading-none"
+            style={{ fontSize: `${24 * fontScale}px` }}
+          >
+            {node.emoji ?? '📌'}
           </div>
-        )}
-        {/* AUSFÜHRLICH: Short-Desc fest, Description-Anschnitt, Tasks-Count */}
-        {detailLevel === 'full' && !editing && (
-          <>
-            {node.short_desc && (
-              <div
-                className="line-clamp-1 italic opacity-85"
-                style={{ fontSize: `${10 * fontScale}px` }}
-              >
-                {node.short_desc}
-              </div>
-            )}
-            {node.description && (
-              <div
-                className="line-clamp-2 opacity-70"
-                style={{ fontSize: `${9 * fontScale}px` }}
-              >
-                {node.description}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+          {editing ? (
+            <NameInput
+              initial={node.name}
+              fontSize={13 * fontScale}
+              color={node.text_color}
+              onCommit={async (value) => {
+                setEditing(false)
+                const trimmed = value.trim() || 'Knoten'
+                if (trimmed !== node.name) {
+                  // History-Eintrag, damit Inline-Rename via Doppelklick
+                  // auch undo'bar ist
+                  useMapStore.getState().pushHistory({
+                    type: 'patch-node',
+                    nodeId: node.id,
+                    before: { name: node.name },
+                    after: { name: trimmed },
+                  })
+                  useMapStore
+                    .getState()
+                    .patchNodeLocal(node.id, { name: trimmed })
+                  try {
+                    // savedAction wrappt → SaveIndicator zeigt 'speichere…'
+                    // und springt auf 'gespeichert' sobald durch
+                    await savedAction(() =>
+                      updateNodeAction(node.id, { name: trimmed }),
+                    )
+                  } catch (err) {
+                    console.error('Name speichern fehlgeschlagen', err)
+                  }
+                }
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          ) : (
+            <div
+              className="line-clamp-2 font-semibold leading-tight"
+              style={{ fontSize: `${13 * fontScale}px` }}
+            >
+              {node.name}
+            </div>
+          )}
+          {/* AUSFÜHRLICH: Short-Desc fest, Description-Anschnitt, Tasks-Count */}
+          {detailLevel === 'full' && !editing && (
+            <>
+              {node.short_desc && (
+                <div
+                  className="line-clamp-1 italic opacity-85"
+                  style={{ fontSize: `${10 * fontScale}px` }}
+                >
+                  {node.short_desc}
+                </div>
+              )}
+              {node.description && (
+                <div
+                  className="line-clamp-2 opacity-70"
+                  style={{ fontSize: `${9 * fontScale}px` }}
+                >
+                  {node.description}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Step-Pille: nur in Normal + Ausführlich, NICHT bei Sticky-Notes */}
       {detailLevel !== 'simple' && !isNote && (
