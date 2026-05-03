@@ -62,6 +62,14 @@ export async function updateConnectionAction(
     number?: number | null
     color?: string | null
     line_style?: 'solid' | 'dashed' | 'dotted'
+    stroke_width?: 'thin' | 'medium' | 'thick'
+    animation?: 'none' | 'pulse' | 'glow'
+    from_node_id?: string | null
+    to_node_id?: string | null
+    from_x?: number | null
+    from_y?: number | null
+    to_x?: number | null
+    to_y?: number | null
   },
 ) {
   const supabase = await createClient()
@@ -135,6 +143,7 @@ export async function applyTemplateToMapAction(
     lane: n.lane ?? null,
     start_date: n.start_date ?? null,
     end_date: n.end_date ?? null,
+    locked: n.locked ?? false,
   }))
 
   const { data: insertedNodes, error: nodesErr } = await supabase

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Plus, Search, LayoutTemplate } from 'lucide-react'
+import { X, Plus, Search, LayoutTemplate, Star } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import {
   TEMPLATES,
@@ -11,6 +11,26 @@ import {
 } from '@/lib/data/templates'
 import { createMapFromTemplateAction } from '@/app/(dashboard)/maps/actions'
 import { applyTemplateToMapAction } from '@/app/(dashboard)/maps/[id]/actions'
+
+const FAVORITES_KEY = 'claromap.favoriteTemplates'
+
+function loadFavorites(): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY)
+    if (!raw) return new Set()
+    const arr = JSON.parse(raw) as unknown
+    if (!Array.isArray(arr)) return new Set()
+    return new Set(arr.filter((x): x is string => typeof x === 'string'))
+  } catch {
+    return new Set()
+  }
+}
+
+function saveFavorites(set: Set<string>) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(set)))
+}
 
 interface Props {
   open: boolean
@@ -37,14 +57,36 @@ export function TemplatePicker({
   mapId,
 }: Props) {
   const router = useRouter()
-  const [activeCat, setActiveCat] = useState<'all' | TemplateCategory>('all')
+  const [activeCat, setActiveCat] = useState<'all' | 'favorites' | TemplateCategory>('all')
   const [search, setSearch] = useState('')
   const [pending, startTransition] = useTransition()
   const [pickingId, setPickingId] = useState<string | null>(null)
+  // Lazy-init aus localStorage (läuft nur einmal beim ersten Render).
+  // Picker ist conditionally gerendert (open && ...), also wird der State
+  // bei jedem Öffnen frisch initialisiert, was hier genau das gewünschte
+  // Verhalten ist.
+  const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites())
+
+  const toggleFavorite = (templateId: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev)
+      if (next.has(templateId)) next.delete(templateId)
+      else next.add(templateId)
+      saveFavorites(next)
+      return next
+    })
+  }
 
   const filtered = useMemo(() => {
     return TEMPLATES.filter((t) => {
-      if (activeCat !== 'all' && t.category !== activeCat) return false
+      if (activeCat === 'favorites' && !favorites.has(t.id)) return false
+      if (
+        activeCat !== 'all' &&
+        activeCat !== 'favorites' &&
+        t.category !== activeCat
+      ) {
+        return false
+      }
       if (!search) return true
       const q = search.toLowerCase()
       return (
@@ -52,7 +94,7 @@ export function TemplatePicker({
         t.description.toLowerCase().includes(q)
       )
     })
-  }, [activeCat, search])
+  }, [activeCat, search, favorites])
 
   const onPick = (templateId: string) => {
     setPickingId(templateId)
@@ -125,6 +167,39 @@ export function TemplatePicker({
             />
           </div>
           <div className="flex flex-wrap gap-1">
+            {/* Favoriten-Filter prominent vorne */}
+            <button
+              type="button"
+              onClick={() => setActiveCat('favorites')}
+              disabled={pending}
+              className={cn(
+                'flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition',
+                activeCat === 'favorites'
+                  ? 'bg-amber/15 text-amber ring-1 ring-amber/40'
+                  : 'bg-bg3 text-text2 hover:bg-bg4',
+                pending && 'opacity-50',
+              )}
+              title={
+                favorites.size === 0
+                  ? 'Markiere eine Vorlage mit dem Stern, um sie hier zu sehen.'
+                  : `${favorites.size} Favoriten`
+              }
+            >
+              <Star
+                size={12}
+                className={cn(
+                  activeCat === 'favorites' || favorites.size > 0
+                    ? 'fill-amber text-amber'
+                    : '',
+                )}
+              />
+              <span>Favoriten</span>
+              {favorites.size > 0 && (
+                <span className="font-mono text-[10px] opacity-75">
+                  ({favorites.size})
+                </span>
+              )}
+            </button>
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
@@ -148,53 +223,106 @@ export function TemplatePicker({
         {/* Grid */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {filtered.length === 0 ? (
-            <p className="py-12 text-center text-sm text-text3">
-              Keine Vorlage zu &bdquo;{search}&ldquo; gefunden.
-            </p>
+            activeCat === 'favorites' && favorites.size === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-16 text-center">
+                <Star size={32} className="text-text4" />
+                <p className="text-sm text-text3">
+                  Du hast noch keine Favoriten.
+                </p>
+                <p className="text-xs text-text4">
+                  Klick bei einer Vorlage auf den{' '}
+                  <Star
+                    size={12}
+                    className="-mb-0.5 inline text-amber"
+                  />{' '}
+                  oben rechts, um sie hier zu sammeln.
+                </p>
+              </div>
+            ) : (
+              <p className="py-12 text-center text-sm text-text3">
+                Keine Vorlage zu &bdquo;{search}&ldquo; gefunden.
+              </p>
+            )
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => onPick(t.id)}
-                  disabled={pending}
-                  className={cn(
-                    'group flex flex-col items-start gap-2 rounded-lg border bg-bg2 p-4 text-left transition',
-                    pickingId === t.id
-                      ? 'border-accent shadow-mid'
-                      : 'border-line hover:border-accent/40 hover:shadow-soft',
-                    pending && pickingId !== t.id && 'opacity-50',
-                  )}
-                >
-                  <div className="flex w-full items-center justify-between">
-                    <span className="text-2xl leading-none">{t.icon}</span>
-                    <span className="rounded-full bg-bg3 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text3">
-                      {CATEGORY_LABELS[t.category]}
-                    </span>
-                  </div>
-                  <h3 className="font-display text-base font-semibold leading-tight">
-                    {t.name}
-                  </h3>
-                  <p className="line-clamp-2 text-xs leading-relaxed text-text3">
-                    {t.description}
-                  </p>
-                  <div className="mt-1 flex w-full items-center justify-between text-[10px] font-mono text-text4">
-                    <span>
-                      {t.nodes.length} {t.nodes.length === 1 ? 'Knoten' : 'Knoten'}
-                      {t.connections.length > 0 &&
-                        ` · ${t.connections.length} Linien`}
-                    </span>
-                    {pickingId === t.id ? (
-                      <span className="text-accent">Lege an…</span>
-                    ) : (
-                      <span className="text-accent opacity-0 transition group-hover:opacity-100">
-                        Auswählen →
-                      </span>
+              {filtered.map((t) => {
+                const isFav = favorites.has(t.id)
+                return (
+                  <div
+                    key={t.id}
+                    className={cn(
+                      'group relative flex flex-col items-start gap-2 rounded-lg border bg-bg2 p-4 text-left transition',
+                      pickingId === t.id
+                        ? 'border-accent shadow-mid'
+                        : 'border-line hover:border-accent/40 hover:shadow-soft',
+                      pending && pickingId !== t.id && 'opacity-50',
                     )}
+                  >
+                    {/* Favoriten-Stern oben rechts — klickbar ohne Karten-Wahl auszulösen */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleFavorite(t.id)
+                      }}
+                      disabled={pending}
+                      className={cn(
+                        'absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full transition',
+                        isFav
+                          ? 'text-amber hover:bg-amber/10'
+                          : 'text-text4 opacity-0 hover:bg-bg3 hover:text-amber group-hover:opacity-100',
+                      )}
+                      aria-label={
+                        isFav ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'
+                      }
+                      title={
+                        isFav ? 'Aus Favoriten entfernen' : 'Als Favorit markieren'
+                      }
+                    >
+                      <Star
+                        size={16}
+                        className={cn(isFav && 'fill-amber')}
+                      />
+                    </button>
+
+                    {/* Klickbarer Karten-Body */}
+                    <button
+                      type="button"
+                      onClick={() => onPick(t.id)}
+                      disabled={pending}
+                      className="flex w-full flex-col items-start gap-2 text-left"
+                    >
+                      <div className="flex w-full items-center gap-2 pr-7">
+                        <span className="text-2xl leading-none">{t.icon}</span>
+                        <span className="rounded-full bg-bg3 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text3">
+                          {CATEGORY_LABELS[t.category]}
+                        </span>
+                      </div>
+                      <h3 className="font-display text-base font-semibold leading-tight">
+                        {t.name}
+                      </h3>
+                      <p className="line-clamp-2 text-xs leading-relaxed text-text3">
+                        {t.description}
+                      </p>
+                      <div className="mt-1 flex w-full items-center justify-between text-[10px] font-mono text-text4">
+                        <span>
+                          {t.nodes.length}{' '}
+                          {t.nodes.length === 1 ? 'Knoten' : 'Knoten'}
+                          {t.connections.length > 0 &&
+                            ` · ${t.connections.length} Linien`}
+                        </span>
+                        {pickingId === t.id ? (
+                          <span className="text-accent">Lege an…</span>
+                        ) : (
+                          <span className="text-accent opacity-0 transition group-hover:opacity-100">
+                            Auswählen →
+                          </span>
+                        )}
+                      </div>
+                    </button>
                   </div>
-                </button>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

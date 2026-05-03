@@ -21,6 +21,7 @@ import {
   createConnectionAction,
   createNodeAction,
   deleteNodeAction,
+  updateConnectionAction,
   updateNodeAction,
 } from '@/app/(dashboard)/maps/[id]/actions'
 import { savedAction } from '@/lib/utils/savedAction'
@@ -57,6 +58,18 @@ type DragState =
       startW: number
       startH: number
     }
+  | {
+      // Pfeil-Endpunkt verschieben — bewegt nur einen End (from oder to).
+      // Beim Loslassen über einem Knoten: snap auf diesen Knoten
+      // (from_node_id / to_node_id setzen + from_x/y bzw. to_x/y null).
+      // Sonst: freie Position speichern (from_x/y bzw. to_x/y).
+      kind: 'drag-endpoint'
+      connectionId: string
+      end: 'from' | 'to'
+      // Live-Preview-Position (in Map-Koordinaten)
+      currentX: number
+      currentY: number
+    }
 
 const MIN_NODE_SIZE = 60
 const MAX_NODE_SIZE = 300
@@ -90,6 +103,7 @@ export function WorkflowView({ mapId }: Props) {
   const handTool = useUIStore((s) => s.handTool)
   const freeArrowMode = useUIStore((s) => s.freeArrowMode)
   const freeArrowStart = useUIStore((s) => s.freeArrowStart)
+  const selectedConnectionId = useMapStore((s) => s.selectedConnectionId)
 
   // Im Focus-Mode: nur Knoten die mit dem selektierten direkt verbunden sind
   // (oder der selektierte selbst) bleiben voll sichtbar.
@@ -111,9 +125,41 @@ export function WorkflowView({ mapId }: Props) {
     const state = dragRef.current
     if (!state) return
 
+    const currentScale = useUIStore.getState().scale
+
+    // drag-endpoint: nutzt die aktuelle Mausposition direkt (absolute).
+    // Dadurch ist die Bewegung pixel-genau am Cursor — keine startMouseX/Y-Diff.
+    if (state.kind === 'drag-endpoint') {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const ui = useUIStore.getState()
+      const mapX = Math.round((e.clientX - rect.left - ui.panX) / ui.scale)
+      const mapY = Math.round((e.clientY - rect.top - ui.panY) / ui.scale)
+      state.currentX = mapX
+      state.currentY = mapY
+
+      // Live-Preview: lokal patchen, damit der Pfeil dem Cursor folgt.
+      // Wir lösen die node-Bindung für den gezogenen Endpunkt und setzen
+      // freie Koordinaten — das wird beim Mouse-Up entweder bestätigt oder
+      // (bei Snap auf Knoten) durch from_node_id/to_node_id ersetzt.
+      if (state.end === 'from') {
+        useMapStore.getState().patchConnectionLocal(state.connectionId, {
+          from_node_id: null,
+          from_x: mapX,
+          from_y: mapY,
+        })
+      } else {
+        useMapStore.getState().patchConnectionLocal(state.connectionId, {
+          to_node_id: null,
+          to_x: mapX,
+          to_y: mapY,
+        })
+      }
+      return
+    }
+
     const dx = e.clientX - state.startMouseX
     const dy = e.clientY - state.startMouseY
-    const currentScale = useUIStore.getState().scale
 
     if (state.kind === 'pan') {
       useUIStore.getState().setPan(state.startPanX + dx, state.startPanY + dy)
@@ -299,6 +345,52 @@ export function WorkflowView({ mapId }: Props) {
           console.error('Größe konnte nicht gespeichert werden', err),
         )
       }
+    } else if (state.kind === 'drag-endpoint') {
+      // Snap-Test: liegt currentX/Y über einem Knoten?
+      const allNodes = useMapStore.getState().nodes
+      const hovered = allNodes.find(
+        (n) =>
+          state.currentX >= n.position_x &&
+          state.currentX <= n.position_x + n.width &&
+          state.currentY >= n.position_y &&
+          state.currentY <= n.position_y + n.height,
+      )
+
+      const patch =
+        state.end === 'from'
+          ? hovered
+            ? {
+                from_node_id: hovered.id,
+                from_x: null,
+                from_y: null,
+              }
+            : {
+                from_node_id: null,
+                from_x: state.currentX,
+                from_y: state.currentY,
+              }
+          : hovered
+            ? {
+                to_node_id: hovered.id,
+                to_x: null,
+                to_y: null,
+              }
+            : {
+                to_node_id: null,
+                to_x: state.currentX,
+                to_y: state.currentY,
+              }
+
+      // Lokal final patchen (wenn snap auf knoten: from_node_id setzen,
+      // freie x/y nullen — patchConnectionLocal in onMouseMove hatte schon
+      // freie x/y gesetzt; das überschreiben wir hier).
+      useMapStore.getState().patchConnectionLocal(state.connectionId, patch)
+
+      savedAction(() =>
+        updateConnectionAction(state.connectionId, patch),
+      ).catch((err) =>
+        console.error('Pfeil-Endpunkt konnte nicht gespeichert werden', err),
+      )
     }
   }, [])
 
@@ -351,6 +443,8 @@ export function WorkflowView({ mapId }: Props) {
         number: null,
         color: null,
         line_style: 'solid',
+        stroke_width: 'medium',
+        animation: 'none',
         created_at: new Date().toISOString(),
       }
       useMapStore.getState().upsertConnection(tempConn)
@@ -455,6 +549,8 @@ export function WorkflowView({ mapId }: Props) {
         number: null,
         color: null,
         line_style: 'solid',
+        stroke_width: 'medium',
+        animation: 'none',
         created_at: new Date().toISOString(),
       }
       useMapStore.getState().upsertConnection(tempConn)
@@ -484,6 +580,14 @@ export function WorkflowView({ mapId }: Props) {
       return
     }
 
+    // Locked-Knoten: nur selektieren, NICHT draggen. So bleibt das
+    // Hintergrund-Layout (z. B. Eisenhower-Quadranten) stabil, ohne dass
+    // man den Knoten versehentlich verschiebt.
+    if (node.locked) {
+      store.selectNode(node.id)
+      return
+    }
+
     // Wenn der angeklickte Knoten Teil einer bestehenden Multi-Selection ist:
     // Selection NICHT zurücksetzen (sonst geht Bulk verloren) → Bulk-Drag
     // mit allen Selected. Sonst: Single-Select + Single-Drag.
@@ -498,6 +602,8 @@ export function WorkflowView({ mapId }: Props) {
         if (id === node.id) continue
         const n = nodesById.get(id)
         if (!n) continue
+        // Locked-Knoten beim Bulk-Drag überspringen
+        if (n.locked) continue
         others.push({
           nodeId: id,
           startX: n.position_x,
@@ -546,6 +652,29 @@ export function WorkflowView({ mapId }: Props) {
     e.stopPropagation()
     useMapStore.getState().selectConnection(id)
   }, [])
+
+  // Pfeil-Endpunkt anfassen — startet drag-endpoint. Beim Loslassen
+  // (siehe onMouseUp) wird entweder snap-to-node oder freie Position gespeichert.
+  const onEndpointMouseDown = useCallback(
+    (e: ReactMouseEvent, end: 'from' | 'to', conn: ConnectionRow) => {
+      if (e.button !== 0) return
+      e.stopPropagation()
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const ui = useUIStore.getState()
+      const mapX = Math.round((e.clientX - rect.left - ui.panX) / ui.scale)
+      const mapY = Math.round((e.clientY - rect.top - ui.panY) / ui.scale)
+      dragRef.current = {
+        kind: 'drag-endpoint',
+        connectionId: conn.id,
+        end,
+        currentX: mapX,
+        currentY: mapY,
+      }
+      startDragListeners()
+    },
+    [startDragListeners],
+  )
 
   // Wheel zoom (native listener for passive:false)
   useEffect(() => {
@@ -808,7 +937,12 @@ export function WorkflowView({ mapId }: Props) {
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         const state = useMapStore.getState()
-        const ids = Array.from(state.selectedNodeIds)
+        const lockedIds = new Set(
+          state.nodes.filter((n) => n.locked).map((n) => n.id),
+        )
+        const ids = Array.from(state.selectedNodeIds).filter(
+          (id) => !lockedIds.has(id),
+        )
         if (ids.length === 0) return
         e.preventDefault()
 
@@ -934,7 +1068,12 @@ export function WorkflowView({ mapId }: Props) {
 
   const handleDeleteSelected = async () => {
     const state = useMapStore.getState()
-    const ids = Array.from(state.selectedNodeIds)
+    const lockedIds = new Set(
+      state.nodes.filter((n) => n.locked).map((n) => n.id),
+    )
+    const ids = Array.from(state.selectedNodeIds).filter(
+      (id) => !lockedIds.has(id),
+    )
     if (ids.length === 0) return
 
     if (ids.length === 1) {
@@ -1126,32 +1265,39 @@ export function WorkflowView({ mapId }: Props) {
                   fromNode={from ?? null}
                   toNode={to ?? null}
                   handDrawn={theme === 'hand'}
+                  selected={selectedConnectionId === c.id}
+                  onEndpointMouseDown={onEndpointMouseDown}
                 />
               </g>
             )
           })}
         </svg>
 
-        {nodes.map((node) => {
-          const dimmed =
-            focusVisibleIds !== null && !focusVisibleIds.has(node.id)
-          const isSingleSelected = selectedNodeId === node.id
-          const isInMulti =
-            selectedNodeIds.size > 1 && selectedNodeIds.has(node.id)
-          return (
-            <Node
-              key={node.id}
-              node={node}
-              selected={isSingleSelected}
-              multiSelected={isInMulti}
-              connectMode={connectMode}
-              isConnectStart={connectFromNodeId === node.id}
-              dimmed={dimmed}
-              onMouseDownNode={onNodeMouseDown}
-              onMouseDownHandle={onResizeHandleMouseDown}
-            />
-          )
-        })}
+        {/* Locked-Knoten zuerst rendern → liegen optisch UNTER den normalen
+            Knoten, sodass z. B. Eisenhower-Quadranten als Hintergrund dienen. */}
+        {[...nodes]
+          .sort((a, b) => Number(a.locked) - Number(b.locked))
+          .reverse()
+          .map((node) => {
+            const dimmed =
+              focusVisibleIds !== null && !focusVisibleIds.has(node.id)
+            const isSingleSelected = selectedNodeId === node.id
+            const isInMulti =
+              selectedNodeIds.size > 1 && selectedNodeIds.has(node.id)
+            return (
+              <Node
+                key={node.id}
+                node={node}
+                selected={isSingleSelected}
+                multiSelected={isInMulti}
+                connectMode={connectMode}
+                isConnectStart={connectFromNodeId === node.id}
+                dimmed={dimmed}
+                onMouseDownNode={onNodeMouseDown}
+                onMouseDownHandle={onResizeHandleMouseDown}
+              />
+            )
+          })}
       </div>
 
       {nodes.length === 0 && (

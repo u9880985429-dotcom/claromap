@@ -236,7 +236,8 @@ function NodeImpl({
       {/* Ausführlich-only: Tasks-Count-Badge unten links */}
       {detailLevel === 'full' && !isNote && <TasksBadge nodeId={node.id} />}
 
-      {selected && !connectMode && !editing && (
+      {/* Locked-Knoten: kein Resize. Stattdessen kleines Schloss-Indikator unten rechts. */}
+      {selected && !connectMode && !editing && !node.locked && (
         <>
           <ResizeHandle
             corner="tl"
@@ -255,6 +256,15 @@ function NodeImpl({
             onMouseDown={(e) => onMouseDownHandle(e, node, 'br')}
           />
         </>
+      )}
+
+      {node.locked && (
+        <div
+          className="pointer-events-none absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg2 text-[10px] shadow-soft"
+          title="Knoten ist fixiert (gesperrt)"
+        >
+          🔒
+        </div>
       )}
     </div>
   )

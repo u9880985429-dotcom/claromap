@@ -36,6 +36,11 @@ export type TemplateNode = {
   start_date?: string
   end_date?: string
   parent_step?: number
+  // Wenn true: Knoten ist fixiert (nicht draggable, nicht löschbar via Bulk).
+  // Wird von Vorlagen wie Eisenhower-Matrix für die Hintergrund-Quadranten
+  // genutzt — die User kann sie selektieren, lesen, sogar via DetailPanel
+  // entsperren, aber sie verrutschen nicht beim normalen Arbeiten.
+  locked?: boolean
 }
 
 export type TemplateConnection = {
@@ -630,15 +635,73 @@ const eisenhower: Template = {
   category: 'entscheidungen',
   name: 'Eisenhower-Matrix',
   description:
-    'Aufgaben nach Wichtig/Dringend in 4 Quadranten — sofort tun, planen, delegieren, weglassen.',
+    '4 fixierte Quadranten als Hintergrund — Aufgaben einfach reinziehen. Sofort tun · Planen · Delegieren · Weglassen.',
   icon: '🟦',
   preferredView: 'graph',
   preferredBackgroundPattern: 'grid',
   nodes: [
-    { step_number: 1, emoji: '🔥', name: 'Wichtig & Dringend', short_desc: 'Sofort tun', shape: '8%', width: 280, height: 200, position_x: 200, position_y: 150, color: C.red },
-    { step_number: 2, emoji: '📅', name: 'Wichtig & nicht dringend', short_desc: 'Planen', shape: '8%', width: 280, height: 200, position_x: 600, position_y: 150, color: C.green },
-    { step_number: 3, emoji: '👥', name: 'Nicht wichtig & dringend', short_desc: 'Delegieren', shape: '8%', width: 280, height: 200, position_x: 200, position_y: 450, color: C.amber },
-    { step_number: 4, emoji: '🗑️', name: 'Nicht wichtig & nicht dringend', short_desc: 'Weglassen', shape: '8%', width: 280, height: 200, position_x: 600, position_y: 450, color: C.gray },
+    // ═══ 4 große Quadranten, FIXIERT, dienen als Hintergrund-Layout ═══
+    {
+      step_number: 1,
+      emoji: '🔥',
+      name: 'Wichtig & Dringend',
+      short_desc: 'Sofort selbst erledigen',
+      shape: '8%',
+      width: 520,
+      height: 380,
+      position_x: 0,
+      position_y: 0,
+      color: '#FECACA', // pastel red
+      text_color: '#7F1D1D',
+      locked: true,
+    },
+    {
+      step_number: 2,
+      emoji: '📅',
+      name: 'Wichtig & nicht dringend',
+      short_desc: 'Bewusst einplanen',
+      shape: '8%',
+      width: 520,
+      height: 380,
+      position_x: 540,
+      position_y: 0,
+      color: '#BBF7D0', // pastel green
+      text_color: '#14532D',
+      locked: true,
+    },
+    {
+      step_number: 3,
+      emoji: '👥',
+      name: 'Nicht wichtig & dringend',
+      short_desc: 'Delegieren',
+      shape: '8%',
+      width: 520,
+      height: 380,
+      position_x: 0,
+      position_y: 400,
+      color: '#FED7AA', // pastel orange
+      text_color: '#7C2D12',
+      locked: true,
+    },
+    {
+      step_number: 4,
+      emoji: '🗑️',
+      name: 'Nicht wichtig & nicht dringend',
+      short_desc: 'Weglassen oder später',
+      shape: '8%',
+      width: 520,
+      height: 380,
+      position_x: 540,
+      position_y: 400,
+      color: '#E5E7EB', // pastel gray
+      text_color: '#374151',
+      locked: true,
+    },
+    // ═══ 4 Beispiel-Aufgaben in den Quadranten ═══
+    { step_number: 5, emoji: '⚡', name: 'Krise lösen', shape: '20%', width: 160, height: 80, position_x: 60, position_y: 220, color: C.red },
+    { step_number: 6, emoji: '🎯', name: 'Quartals-Ziele setzen', shape: '20%', width: 200, height: 80, position_x: 600, position_y: 220, color: C.green },
+    { step_number: 7, emoji: '📞', name: 'Anruf zurückgeben', shape: '20%', width: 180, height: 80, position_x: 60, position_y: 620, color: C.amber },
+    { step_number: 8, emoji: '📺', name: 'Social-Media-Scrollen', shape: '20%', width: 200, height: 80, position_x: 600, position_y: 620, color: C.gray },
   ],
   connections: [],
 }

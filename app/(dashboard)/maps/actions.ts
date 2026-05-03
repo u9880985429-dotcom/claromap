@@ -69,6 +69,7 @@ export async function createMapFromTemplateAction(
     lane: n.lane ?? null,
     start_date: n.start_date ?? null,
     end_date: n.end_date ?? null,
+    locked: n.locked ?? false,
   }))
 
   const { data: insertedNodes, error: nodesErr } = await supabase

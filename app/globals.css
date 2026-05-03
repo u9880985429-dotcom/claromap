@@ -120,6 +120,24 @@
   50%      { box-shadow: 0 0 0 8px rgba(245,166,35,0.15); opacity: 0.55; }
 }
 
+/* Pulsierender Pfeil — sanftes Auf-und-Ab in Helligkeit */
+@keyframes claromapConnPulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.claromap-conn-pulse {
+  animation: claromapConnPulse 1.6s ease-in-out infinite;
+}
+
+/* Leuchtender Pfeil — der Halo (in der ConnectionLine als zweiter path) pulsiert */
+@keyframes claromapConnGlow {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.55; }
+}
+.claromap-conn-glow {
+  animation: claromapConnGlow 2.2s ease-in-out infinite;
+}
+
 @keyframes handWobble {
   0%, 100% { transform: rotate(0deg); }
   25%      { transform: rotate(-0.4deg); }

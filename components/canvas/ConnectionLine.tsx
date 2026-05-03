@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, type MouseEvent as ReactMouseEvent } from 'react'
 import type { NodeRow, ConnectionRow } from '@/stores/mapStore'
 
 interface Props {
@@ -8,6 +8,19 @@ interface Props {
   fromNode: NodeRow | null
   toNode: NodeRow | null
   handDrawn?: boolean
+  selected?: boolean
+  // Wird vom WorkflowView durchgereicht — startet das Endpoint-Drag.
+  onEndpointMouseDown?: (
+    e: ReactMouseEvent,
+    end: 'from' | 'to',
+    connection: ConnectionRow,
+  ) => void
+}
+
+const STROKE_WIDTHS: Record<string, number> = {
+  thin: 1.5,
+  medium: 2.5,
+  thick: 4.5,
 }
 
 function ConnectionLineImpl({
@@ -15,6 +28,8 @@ function ConnectionLineImpl({
   fromNode,
   toNode,
   handDrawn = false,
+  selected = false,
+  onEndpointMouseDown,
 }: Props) {
   // Start- und Endpunkte berechnen — entweder aus Knoten-Mitte oder aus
   // freien Koordinaten (free arrow).
@@ -76,8 +91,19 @@ function ConnectionLineImpl({
           ? '6,3'
           : undefined
 
-  const strokeWidth = handDrawn ? 2.8 : 2.5
+  const baseWidth = STROKE_WIDTHS[connection.stroke_width] ?? 2.5
+  const strokeWidth = handDrawn ? baseWidth + 0.3 : baseWidth
   const arrowId = `arrow-${connection.id}`
+
+  // Animations-Effekte über CSS-Klassen (siehe globals.css)
+  const animClass =
+    connection.animation === 'pulse'
+      ? 'claromap-conn-pulse'
+      : connection.animation === 'glow'
+        ? 'claromap-conn-glow'
+        : ''
+
+  const path = `M ${fromCx} ${fromCy} Q ${cpx} ${cpy} ${endX} ${endY}`
 
   return (
     <g>
@@ -95,23 +121,38 @@ function ConnectionLineImpl({
         </marker>
       </defs>
 
+      {/* Glow-Halo (nur bei animation='glow') */}
+      {connection.animation === 'glow' && (
+        <path
+          d={path}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={strokeWidth + 8}
+          strokeLinecap="round"
+          opacity={0.35}
+          style={{ filter: 'blur(4px)' }}
+          className={animClass}
+        />
+      )}
+
       {/* Unsichtbare dickere Hit-Area für leichtere Klickbarkeit */}
       <path
-        d={`M ${fromCx} ${fromCy} Q ${cpx} ${cpy} ${endX} ${endY}`}
+        d={path}
         fill="none"
         stroke="transparent"
-        strokeWidth={14}
+        strokeWidth={Math.max(14, strokeWidth + 10)}
       />
 
       {/* Sichtbare Linie */}
       <path
-        d={`M ${fromCx} ${fromCy} Q ${cpx} ${cpy} ${endX} ${endY}`}
+        d={path}
         fill="none"
         stroke={stroke}
         strokeWidth={strokeWidth}
         strokeDasharray={dash}
         strokeLinecap="round"
         markerEnd={`url(#${arrowId})`}
+        className={animClass}
       />
 
       {connection.number != null && (
@@ -129,6 +170,32 @@ function ConnectionLineImpl({
           </text>
         </g>
       )}
+
+      {/* Drag-Handles an Start/Ende — nur wenn selektiert */}
+      {selected && onEndpointMouseDown && (
+        <>
+          <circle
+            cx={fromCx}
+            cy={fromCy}
+            r={7}
+            fill="white"
+            stroke={stroke}
+            strokeWidth={2}
+            style={{ cursor: 'grab', pointerEvents: 'all' }}
+            onMouseDown={(e) => onEndpointMouseDown(e, 'from', connection)}
+          />
+          <circle
+            cx={endX}
+            cy={endY}
+            r={7}
+            fill={stroke}
+            stroke="white"
+            strokeWidth={2}
+            style={{ cursor: 'grab', pointerEvents: 'all' }}
+            onMouseDown={(e) => onEndpointMouseDown(e, 'to', connection)}
+          />
+        </>
+      )}
     </g>
   )
 }
@@ -142,6 +209,8 @@ export const ConnectionLine = memo(ConnectionLineImpl, (prev, next) => {
     prev.connection === next.connection &&
     prev.fromNode === next.fromNode &&
     prev.toNode === next.toNode &&
-    prev.handDrawn === next.handDrawn
+    prev.handDrawn === next.handDrawn &&
+    prev.selected === next.selected &&
+    prev.onEndpointMouseDown === next.onEndpointMouseDown
   )
 })

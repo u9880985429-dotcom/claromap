@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { X, Trash2 } from 'lucide-react'
+import { X, Trash2, Lock, Unlock } from 'lucide-react'
 import { useMapStore, type NodeRow } from '@/stores/mapStore'
 import {
   deleteNodeAction,
@@ -258,6 +258,33 @@ function NodeEditor({ node }: { node: NodeRow }) {
             value={node.shape as ShapeValue}
             onChange={(s) => patchAndSave({ shape: s })}
           />
+        </Section>
+
+        <Section label="Position fixieren">
+          <button
+            type="button"
+            onClick={() => patchAndSave({ locked: !node.locked })}
+            className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition ${
+              node.locked
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-line2 bg-bg2 text-text2 hover:bg-bg3'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              {node.locked ? <Lock size={14} /> : <Unlock size={14} />}
+              {node.locked
+                ? 'Knoten ist fixiert (nicht verschiebbar)'
+                : 'Knoten frei verschiebbar'}
+            </span>
+            <span className="font-mono text-xs">
+              {node.locked ? 'AN' : 'AUS'}
+            </span>
+          </button>
+          <p className="mt-1 text-xs text-text4">
+            Fixierte Knoten dienen als Hintergrund-Layout (z. B.
+            Eisenhower-Quadranten) und werden beim Verschieben oder Löschen
+            ignoriert.
+          </p>
         </Section>
 
         <Section label="Aufgaben">

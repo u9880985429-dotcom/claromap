@@ -30,6 +30,12 @@ function ConnectionEditor({ conn }: { conn: ConnectionRow }) {
           | 'dashed'
           | 'dotted'
           | undefined,
+        stroke_width: patch.stroke_width as
+          | 'thin'
+          | 'medium'
+          | 'thick'
+          | undefined,
+        animation: patch.animation as 'none' | 'pulse' | 'glow' | undefined,
       })
     } catch (err) {
       console.error('Verbindung speichern fehlgeschlagen', err)
@@ -127,11 +133,89 @@ function ConnectionEditor({ conn }: { conn: ConnectionRow }) {
         </div>
 
         <div>
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text3">
+            Dicke
+          </label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {(
+              [
+                { v: 'thin', label: 'Dünn', height: 1.5 },
+                { v: 'medium', label: 'Normal', height: 2.5 },
+                { v: 'thick', label: 'Dick', height: 4.5 },
+              ] as const
+            ).map((w) => (
+              <button
+                key={w.v}
+                type="button"
+                onClick={() => patchAndSave({ stroke_width: w.v })}
+                className={`flex flex-col items-center gap-1.5 rounded-md border px-2 py-2 text-xs transition ${
+                  conn.stroke_width === w.v
+                    ? 'border-accent bg-accent/10 text-text'
+                    : 'border-line2 bg-bg2 text-text3 hover:bg-bg3'
+                }`}
+              >
+                <div
+                  className="w-full rounded-full bg-text2"
+                  style={{ height: `${w.height}px` }}
+                />
+                <span>{w.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text3">
+            Animation
+          </label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {(
+              [
+                { v: 'none', label: 'Keine', icon: '—' },
+                { v: 'pulse', label: 'Pulsieren', icon: '🫧' },
+                { v: 'glow', label: 'Leuchten', icon: '✨' },
+              ] as const
+            ).map((a) => (
+              <button
+                key={a.v}
+                type="button"
+                onClick={() => patchAndSave({ animation: a.v })}
+                className={`flex flex-col items-center gap-1 rounded-md border px-2 py-2 text-xs transition ${
+                  conn.animation === a.v
+                    ? 'border-accent bg-accent/10 text-text'
+                    : 'border-line2 bg-bg2 text-text3 hover:bg-bg3'
+                }`}
+              >
+                <span className="text-base leading-none">{a.icon}</span>
+                <span>{a.label}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-text4">
+            Hebt wichtige Pfeile hervor — z. B. den aktuellen Schritt.
+          </p>
+        </div>
+
+        <div>
           <ColorPicker
             label="Farbe"
             value={conn.color ?? '#9CA3AF'}
             onChange={(c) => patchAndSave({ color: c })}
           />
+        </div>
+
+        <div className="rounded-md border border-line2 bg-bg3/50 px-3 py-2 text-xs text-text3">
+          {conn.from_node_id && conn.to_node_id ? (
+            <span>
+              ✅ An beiden Enden an Knoten gebunden — Pfeil bewegt sich mit, wenn
+              du die Knoten verschiebst.
+            </span>
+          ) : (
+            <span>
+              ↗ Freier Pfeil. Ziehe einen Endpunkt auf einen Knoten, um ihn
+              dort zu fixieren.
+            </span>
+          )}
         </div>
       </div>
 

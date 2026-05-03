@@ -101,6 +101,7 @@ export type Database = {
       }
       connections: {
         Row: {
+          animation: string
           color: string | null
           created_at: string
           from_node_id: string | null
@@ -111,11 +112,13 @@ export type Database = {
           map_id: string
           number: number | null
           step_label: string | null
+          stroke_width: string
           to_node_id: string | null
           to_x: number | null
           to_y: number | null
         }
         Insert: {
+          animation?: string
           color?: string | null
           created_at?: string
           from_node_id?: string | null
@@ -126,11 +129,13 @@ export type Database = {
           map_id: string
           number?: number | null
           step_label?: string | null
+          stroke_width?: string
           to_node_id?: string | null
           to_x?: number | null
           to_y?: number | null
         }
         Update: {
+          animation?: string
           color?: string | null
           created_at?: string
           from_node_id?: string | null
@@ -141,6 +146,7 @@ export type Database = {
           map_id?: string
           number?: number | null
           step_label?: string | null
+          stroke_width?: string
           to_node_id?: string | null
           to_x?: number | null
           to_y?: number | null
@@ -234,6 +240,7 @@ export type Database = {
           image_url: string | null
           label_position: string
           lane: string | null
+          locked: boolean
           map_id: string
           name: string
           parent_node_id: string | null
@@ -261,6 +268,7 @@ export type Database = {
           image_url?: string | null
           label_position?: string
           lane?: string | null
+          locked?: boolean
           map_id: string
           name?: string
           parent_node_id?: string | null
@@ -288,6 +296,7 @@ export type Database = {
           image_url?: string | null
           label_position?: string
           lane?: string | null
+          locked?: boolean
           map_id?: string
           name?: string
           parent_node_id?: string | null
