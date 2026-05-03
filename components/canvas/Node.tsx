@@ -313,26 +313,40 @@ function NodeImpl({
 
       {/* Step-Pille: nur in Normal + Ausführlich, NICHT bei Sticky-Notes */}
       {detailLevel !== 'simple' && !isNote && (
-        <div className="absolute -left-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full border border-line bg-bg2 px-1.5 font-mono text-xs font-semibold text-text shadow-soft">
+        <button
+          type="button"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            useMapStore.getState().selectNode(node.id)
+          }}
+          title={`Schritt ${node.step_number} — klicken zum Bearbeiten`}
+          className="absolute -left-2 -top-2 flex h-6 min-w-6 cursor-pointer items-center justify-center rounded-full border border-line bg-bg2 px-1.5 font-mono text-xs font-semibold text-text shadow-soft transition hover:scale-110"
+        >
           {node.step_number}
-        </div>
+        </button>
       )}
 
-      {/* Status-Smiley: nur in Normal + Ausführlich, NICHT bei Sticky-Notes */}
+      {/* Status-Smiley: klickbar = Cycle durch alle Status-Werte (Quick-Toggle) */}
       {detailLevel !== 'simple' && !isNote && (
-        <div className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-bg2 text-sm shadow-soft">
+        <button
+          type="button"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            void cycleStatus(node)
+          }}
+          title="Klicken um Status zu wechseln (Idee → Aktiv → Fertig → ...)"
+          className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-bg2 text-sm shadow-soft transition hover:scale-110"
+        >
           {node.status_icon}
-        </div>
+        </button>
       )}
 
-      {/* Progress-Bar: nur in Normal + Ausführlich, NICHT bei Sticky-Notes */}
-      {detailLevel !== 'simple' && !isNote && node.progress > 0 && (
-        <div className="absolute bottom-1 left-2 right-2 h-1 overflow-hidden rounded-full bg-black/15">
-          <div
-            className="h-full bg-white/85"
-            style={{ width: `${node.progress}%` }}
-          />
-        </div>
+      {/* Progress-Bar: klickbar = öffnet Detail-Panel (Slider). Drag entlang
+          der Bar setzt Fortschritt direkt prozentual zur Klickposition. */}
+      {detailLevel !== 'simple' && !isNote && (
+        <ProgressBar node={node} />
       )}
 
       {/* Ausführlich-only: Tasks-Count-Badge unten links */}
@@ -455,6 +469,135 @@ function ResizeHandle({
         cls,
       )}
     />
+  )
+}
+
+// Status-Cycle: jedes Klicken auf das Smiley wechselt zur nächsten Stufe.
+// Reihenfolge spiegelt einen typischen Workflow: Idee → Bereit → Aktiv →
+// Achtung → Blockiert → Fertig (und wieder von vorn).
+const STATUS_CYCLE: { status: string; icon: string }[] = [
+  { status: 'idea', icon: '🌱' },
+  { status: 'ready', icon: '🚀' },
+  { status: 'wip', icon: '⏳' },
+  { status: 'warning', icon: '⚠️' },
+  { status: 'blocked', icon: '🔒' },
+  { status: 'done', icon: '✅' },
+]
+
+async function cycleStatus(node: NodeRow) {
+  const idx = STATUS_CYCLE.findIndex((s) => s.status === node.status)
+  const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length]!
+  // Auto-Adjust progress: bei 'done' = 100, bei 'idea' = 0 wenn bisher 0/100
+  const progressPatch =
+    next.status === 'done'
+      ? { progress: 100 }
+      : next.status === 'idea' && (node.progress === 100 || node.progress === 0)
+        ? { progress: 0 }
+        : {}
+  const patch: Partial<NodeRow> = {
+    status: next.status,
+    status_icon: next.icon,
+    ...progressPatch,
+  }
+  // Vor-Werte für Undo
+  const before: Partial<NodeRow> = {
+    status: node.status,
+    status_icon: node.status_icon,
+    ...('progress' in progressPatch ? { progress: node.progress } : {}),
+  }
+  useMapStore
+    .getState()
+    .pushHistory({ type: 'patch-node', nodeId: node.id, before, after: patch })
+  useMapStore.getState().patchNodeLocal(node.id, patch)
+  try {
+    await savedAction(() => updateNodeAction(node.id, patch))
+  } catch (err) {
+    console.error('Status konnte nicht gespeichert werden', err)
+  }
+}
+
+// ProgressBar: klick/drag entlang der Bar setzt den Fortschritt prozentual
+// zur Klickposition. Bei 100 → done, bei 0 → idea (Auto-Status).
+function ProgressBar({ node }: { node: NodeRow }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  const setFromEvent = (clientX: number, commit: boolean) => {
+    const rect = ref.current?.getBoundingClientRect()
+    if (!rect) return
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    const progress = Math.round(ratio * 100 / 5) * 5 // snap auf 5%
+    // Auto-Status nach Progress
+    let nextStatus = node.status
+    let nextIcon = node.status_icon
+    if (progress === 100) {
+      nextStatus = 'done'
+      nextIcon = '✅'
+    } else if (progress === 0) {
+      nextStatus = 'idea'
+      nextIcon = '🌱'
+    } else if (node.status !== 'wip' && node.status !== 'warning') {
+      nextStatus = 'wip'
+      nextIcon = '⏳'
+    }
+    const patch: Partial<NodeRow> = {
+      progress,
+      status: nextStatus,
+      status_icon: nextIcon,
+    }
+    useMapStore.getState().patchNodeLocal(node.id, patch)
+    if (commit && progress !== node.progress) {
+      const before: Partial<NodeRow> = {
+        progress: node.progress,
+        status: node.status,
+        status_icon: node.status_icon,
+      }
+      useMapStore
+        .getState()
+        .pushHistory({ type: 'patch-node', nodeId: node.id, before, after: patch })
+      void savedAction(() => updateNodeAction(node.id, patch)).catch((err) =>
+        console.error('Fortschritt konnte nicht gespeichert werden', err),
+      )
+    }
+  }
+
+  const onMouseDown = (e: ReactMouseEvent) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    setFromEvent(e.clientX, false)
+    const onMove = (ev: MouseEvent) => setFromEvent(ev.clientX, false)
+    const onUp = (ev: MouseEvent) => {
+      setFromEvent(ev.clientX, true)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  if (node.progress === 0) {
+    // Subtil-Track damit man weiß: hier kann ich klicken um Fortschritt zu setzen
+    return (
+      <div
+        ref={ref}
+        onMouseDown={onMouseDown}
+        title="Klick/Ziehen: Fortschritt setzen"
+        className="absolute bottom-1 left-2 right-2 h-1 cursor-ew-resize overflow-hidden rounded-full bg-black/8 opacity-0 transition group-hover:opacity-100 hover:!opacity-100"
+      />
+    )
+  }
+
+  return (
+    <div
+      ref={ref}
+      onMouseDown={onMouseDown}
+      title={`${node.progress}% — klick/zieh um zu ändern`}
+      className="absolute bottom-1 left-2 right-2 h-1.5 cursor-ew-resize overflow-hidden rounded-full bg-black/15 transition hover:h-2"
+    >
+      <div
+        className="h-full bg-white/85"
+        style={{ width: `${node.progress}%` }}
+      />
+    </div>
   )
 }
 
