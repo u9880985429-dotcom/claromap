@@ -312,10 +312,26 @@ export function WorkflowView({ mapId }: Props) {
         const h = clamp(state.startH - dys)
         newY = state.startY + (state.startH - h)
         newH = h
-      } else {
+      } else if (state.corner === 'tl') {
         const w = clamp(state.startW - dxs)
         newX = state.startX + (state.startW - w)
         newW = w
+        const h = clamp(state.startH - dys)
+        newY = state.startY + (state.startH - h)
+        newH = h
+      } else if (state.corner === 'r') {
+        // 1D-Resize Rechts: nur Breite ändern
+        newW = clamp(state.startW + dxs)
+      } else if (state.corner === 'l') {
+        // 1D-Resize Links: Breite + Position-X
+        const w = clamp(state.startW - dxs)
+        newX = state.startX + (state.startW - w)
+        newW = w
+      } else if (state.corner === 'b') {
+        // 1D-Resize Unten: nur Höhe
+        newH = clamp(state.startH + dys)
+      } else if (state.corner === 't') {
+        // 1D-Resize Oben: Höhe + Position-Y
         const h = clamp(state.startH - dys)
         newY = state.startY + (state.startH - h)
         newH = h
@@ -1428,6 +1444,7 @@ export function WorkflowView({ mapId }: Props) {
       )}
 
       <div
+        data-claromap-canvas
         className="absolute left-0 top-0 origin-top-left will-change-transform"
         style={{
           transform: `translate(${panX}px, ${panY}px) scale(${scale})`,

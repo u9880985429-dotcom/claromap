@@ -13,7 +13,10 @@ import { useMapStore, type NodeRow } from '@/stores/mapStore'
 import { updateNodeAction } from '@/app/(dashboard)/maps/[id]/actions'
 import { savedAction } from '@/lib/utils/savedAction'
 
-export type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br'
+// 8 Resize-Handles: 4 Ecken + 4 Kanten-Mitten.
+// Eck-Handles ändern Höhe + Breite gleichzeitig (2D), Kanten-Handles
+// nur eine Achse (1D-Resize, üblich in Figma/FigJam/Miro).
+export type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br' | 't' | 'r' | 'b' | 'l'
 export type ConnectAnchor = 'top' | 'right' | 'bottom' | 'left'
 
 interface Props {
@@ -379,6 +382,23 @@ function NodeImpl({
             corner="br"
             onMouseDown={(e) => onMouseDownHandle(e, node, 'br')}
           />
+          {/* Kanten-Handles für 1D-Resize */}
+          <ResizeHandle
+            corner="t"
+            onMouseDown={(e) => onMouseDownHandle(e, node, 't')}
+          />
+          <ResizeHandle
+            corner="r"
+            onMouseDown={(e) => onMouseDownHandle(e, node, 'r')}
+          />
+          <ResizeHandle
+            corner="b"
+            onMouseDown={(e) => onMouseDownHandle(e, node, 'b')}
+          />
+          <ResizeHandle
+            corner="l"
+            onMouseDown={(e) => onMouseDownHandle(e, node, 'l')}
+          />
         </>
       )}
 
@@ -513,18 +533,33 @@ function ResizeHandle({
   corner: ResizeCorner
   onMouseDown: (e: ReactMouseEvent) => void
 }) {
+  const isCorner = corner.length === 2
   const cls = {
     tl: '-top-1.5 -left-1.5 cursor-nwse-resize',
     tr: '-top-1.5 -right-1.5 cursor-nesw-resize',
     bl: '-bottom-1.5 -left-1.5 cursor-nesw-resize',
     br: '-bottom-1.5 -right-1.5 cursor-nwse-resize',
+    t: '-top-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize',
+    r: '-right-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize',
+    b: '-bottom-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize',
+    l: '-left-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize',
   }[corner]
+
+  // Eck-Handles: rund (klassisch). Kanten-Handles: schmaler Strich,
+  // damit sie nicht so dominant sind und sich klar von den Ecken
+  // unterscheiden.
+  const shape = isCorner
+    ? 'h-3 w-3 rounded-full'
+    : corner === 't' || corner === 'b'
+      ? 'h-2 w-6 rounded-md'
+      : 'h-6 w-2 rounded-md'
 
   return (
     <div
       onMouseDown={onMouseDown}
       className={cn(
-        'absolute z-10 h-3 w-3 rounded-full border-2 border-bg2 bg-accent shadow-soft',
+        'absolute z-10 border-2 border-bg2 bg-accent shadow-soft',
+        shape,
         cls,
       )}
     />
